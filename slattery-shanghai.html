@@ -88,58 +88,22 @@
             margin-bottom: 15px;
         }
         
-        .crest-shield {
-            background: #f8f8f8;
-            border: 3px solid #2c2c2c;
+        .crest-image {
             width: 80px;
-            height: 95px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: space-around;
-            position: relative;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-            margin: 0 auto;
-            padding: 8px 5px;
-            clip-path: polygon(0 0, 100% 0, 100% 75%, 50% 100%, 0 75%);
+            height: auto;
+            max-height: 95px;
+            object-fit: contain;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            background: rgba(255,255,255,0.9);
+            padding: 3px;
         }
         
-        .lion {
-            font-size: 14px;
-            color: #cc0000;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
-            filter: hue-rotate(0deg) saturate(1.5);
-            transform: scaleX(-1); /* Face lions toward center */
-        }
-        
-        .lion-top {
-            margin-bottom: 3px;
-        }
-        
-        .lions-bottom {
-            display: flex;
-            gap: 12px;
-            margin-top: 3px;
-        }
-        
-        .lion-left {
-            transform: scaleX(1); /* Left lion faces right */
-        }
-        
-        .lion-right {
-            transform: scaleX(-1); /* Right lion faces left */
-        }
-        
-        .crest-shield::before {
-            content: '';
-            position: absolute;
-            top: -2px;
-            left: -2px;
-            right: -2px;
-            bottom: -2px;
-            background: #e0e0e0;
-            z-index: -1;
-            clip-path: polygon(0 0, 100% 0, 100% 75%, 50% 100%, 0 75%);
+        .crest-image:hover {
+            transform: scale(1.05);
+            transition: transform 0.3s ease;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.5);
         }
         
         .header h1 {
@@ -665,13 +629,7 @@
         
         <div class="header">
             <div class="slattery-crest">
-                <div class="crest-shield">
-                    <div class="lion lion-top">🦁</div>
-                    <div class="lions-bottom">
-                        <div class="lion lion-left">🦁</div>
-                        <div class="lion lion-right">🦁</div>
-                    </div>
-                </div>
+                <img src="slattery-crest.jpg" alt="Slattery Family Crest" class="crest-image">
             </div>
             <h1>Slattery Shanghai</h1>
             <p>Family Card Game - 7 Rounds Edition</p>
