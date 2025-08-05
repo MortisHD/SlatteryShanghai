@@ -94,29 +94,6 @@
             margin-bottom: 30px;
         }
         
-        .slattery-crest {
-            display: inline-block;
-            margin-bottom: 15px;
-        }
-        
-        .crest-image {
-            width: 80px;
-            height: auto;
-            max-height: 95px;
-            object-fit: contain;
-            border: 2px solid rgba(255,255,255,0.3);
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-            background: rgba(255,255,255,0.9);
-            padding: 3px;
-        }
-        
-        .crest-image:hover {
-            transform: scale(1.05);
-            transition: transform 0.3s ease;
-            box-shadow: 0 6px 16px rgba(0,0,0,0.5);
-        }
-        
         .header h1 {
             font-size: 2.5rem;
             margin-bottom: 10px;
@@ -206,23 +183,6 @@
             background: #da190b;
         }
         
-        .btn-organization {
-            background: #9c27b0;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            margin: 2px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.2s ease;
-        }
-        
-        .btn-organization:hover:not(:disabled) {
-            background: #7b1fa2;
-            transform: translateY(-1px);
-        }
-        
         .messages {
             background: rgba(0,0,0,0.3);
             padding: 15px;
@@ -255,21 +215,6 @@
             margin-top: 10px;
         }
         
-        .insertion-point {
-            width: 8px;
-            height: 84px;
-            background: transparent;
-            border: 2px dashed transparent;
-            border-radius: 4px;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 8px;
-            cursor: pointer;
-            flex-shrink: 0;
-        }
-        
         .card {
             width: 60px;
             height: 84px;
@@ -288,38 +233,14 @@
             user-select: none;
         }
         
-        .card:hover:not(.dragging) {
+        .card:hover {
             transform: translateY(-3px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
         
         .card.selected {
-            position: relative;
-        }
-        
-        .card.selected::after {
-            content: '';
-            position: absolute;
-            top: -2px;
-            left: -2px;
-            right: -2px;
-            bottom: -2px;
             border: 2px solid #ffd700;
-            border-radius: 8px;
-            pointer-events: none;
-            animation: selectedPulse 1.5s infinite;
-        }
-        
-        @keyframes selectedPulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-        
-        .card.dragging {
-            opacity: 0.6;
-            transform: rotate(3deg) scale(1.05);
-            z-index: 1000;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+            box-shadow: 0 0 10px rgba(255,215,0,0.5);
         }
         
         .card.red {
@@ -328,218 +249,6 @@
         
         .card.black {
             color: #1976d2;
-        }
-        
-        .all-melds-area {
-            background: rgba(0,0,0,0.2);
-            padding: 20px;
-            border-radius: 10px;
-            margin: 20px 0;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        
-        .player-melds-section {
-            margin-bottom: 20px;
-            padding: 15px;
-            background: rgba(255,255,255,0.05);
-            border-radius: 8px;
-            border-left: 4px solid #4caf50;
-        }
-        
-        .player-melds-section.current-player {
-            border-left-color: #ffd700;
-            background: rgba(255,215,0,0.1);
-        }
-        
-        .player-melds-section.my-melds {
-            border-left-color: #2196f3;
-            background: rgba(33,150,243,0.1);
-        }
-        
-        .player-melds-section.can-go-out {
-            border-left-color: #ff5722;
-            background: rgba(255,87,34,0.1);
-            animation: pulse 2s infinite;
-        }
-        
-        .player-melds-section.close-to-winning {
-            background: linear-gradient(45deg, rgba(255,152,0,0.1), rgba(245,124,0,0.1)) !important;
-            border-left-color: #ff9800 !important;
-        }
-        
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(255,87,34,0.4); }
-            70% { box-shadow: 0 0 0 10px rgba(255,87,34,0); }
-            100% { box-shadow: 0 0 0 0 rgba(255,87,34,0); }
-        }
-        
-        .player-melds-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        
-        .player-melds-header h5 {
-            margin: 0;
-            color: #ffd700;
-            font-size: 16px;
-        }
-        
-        .hand-count-badge {
-            background: rgba(255,255,255,0.2);
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-            color: white;
-        }
-        
-        .requirements-met-badge {
-            background: linear-gradient(45deg, #4caf50, #45a049);
-            color: white;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 10px;
-            font-weight: bold;
-            margin-left: 8px;
-        }
-        
-        .meld-display {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin: 8px 0;
-            padding: 10px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 6px;
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-        
-        .meld-type-label {
-            font-weight: bold;
-            color: #4caf50;
-            margin-right: 10px;
-            text-transform: uppercase;
-            font-size: 12px;
-        }
-        
-        .meld-card {
-            background: white;
-            color: black;
-            padding: 4px 6px;
-            border-radius: 4px;
-            font-weight: bold;
-            font-size: 11px;
-            min-width: 24px;
-            text-align: center;
-            border: 1px solid #333;
-        }
-        
-        .meld-card.red {
-            color: #d32f2f;
-        }
-        
-        .meld-card.black {
-            color: #1976d2;
-        }
-        
-        .no-melds-message {
-            color: rgba(255,255,255,0.5);
-            font-style: italic;
-            text-align: center;
-            padding: 20px;
-        }
-        
-        .melds-toggle {
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.3);
-            color: white;
-            padding: 6px 12px;
-            border-radius: 15px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.2s ease;
-        }
-        
-        .melds-toggle:hover {
-            background: rgba(255,255,255,0.2);
-        }
-        
-        .melds-collapsed .meld-display {
-            display: none;
-        }
-        
-        .quick-reference {
-            background: rgba(255,255,255,0.1);
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            backdrop-filter: blur(10px);
-        }
-        
-        .quick-reference h4 {
-            margin: 0 0 10px 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            user-select: none;
-            cursor: pointer;
-        }
-        
-        .quick-ref-content {
-            transition: all 0.3s ease;
-            overflow: hidden;
-        }
-        
-        .quick-ref-collapsed .quick-ref-content {
-            max-height: 0;
-            padding: 0;
-            margin: 0;
-        }
-        
-        .ref-section {
-            margin-bottom: 12px;
-            padding: 8px;
-            background: rgba(0,0,0,0.2);
-            border-radius: 6px;
-        }
-        
-        .ref-section h5 {
-            margin: 0 0 6px 0;
-            color: #ffd700;
-            font-size: 12px;
-        }
-        
-        .ref-section p {
-            margin: 0;
-            font-size: 11px;
-            color: white;
-        }
-        
-        .progress-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin: 4px 0;
-            font-size: 11px;
-        }
-        
-        .alert-box {
-            min-height: 20px;
-            font-size: 11px;
-            color: #ff9800;
-        }
-        
-        .danger-alert {
-            color: #f44336 !important;
-            font-weight: bold;
-            animation: blink 1s infinite;
-        }
-        
-        @keyframes blink {
-            0%, 50% { opacity: 1; }
-            51%, 100% { opacity: 0.5; }
         }
         
         .piles-area {
@@ -594,13 +303,6 @@
             margin: 5px 0;
         }
         
-        .card-organization {
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px solid rgba(255,255,255,0.2);
-            text-align: center;
-        }
-        
         @media (max-width: 768px) {
             .game-board {
                 grid-template-columns: 1fr;
@@ -610,21 +312,6 @@
                 width: 45px;
                 height: 63px;
                 font-size: 10px;
-            }
-            
-            .insertion-point {
-                width: 6px !important;
-                height: 63px;
-            }
-            
-            .cards-container {
-                min-height: 73px;
-            }
-            
-            .btn-organization {
-                padding: 6px 8px;
-                font-size: 10px;
-                margin: 1px;
             }
         }
     </style>
@@ -639,9 +326,6 @@
         </div>
         
         <div class="header">
-            <div class="slattery-crest">
-                <img src="slattery-crest.jpg" alt="Slattery Family Crest" class="crest-image">
-            </div>
             <h1>Slattery Shanghai</h1>
             <p>Family Card Game - 7 Rounds Edition</p>
         </div>
@@ -695,16 +379,9 @@
                     </div>
                 </div>
                 
-                <div class="all-melds-area">
-                    <h4>🃏 Players' Melds on Table</h4>
-                    <div id="allPlayerMelds">
-                        <p class="no-melds-message">No melds on the table yet</p>
-                    </div>
-                </div>
-                
                 <div class="hand-area">
                     <h4>Your Hand (<span id="handCount">0</span> cards)</h4>
-                    <div id="playerHand" class="cards">
+                    <div id="playerHand" class="cards-container">
                         <!-- Cards appear here -->
                     </div>
                 </div>
@@ -721,16 +398,6 @@
                     <button onclick="makeRun()" id="runBtn">Make Run</button>
                     <button class="btn-danger" onclick="discardCard()" id="discardBtn">Discard</button>
                     <button class="btn-secondary" onclick="buyCard()" id="buyBtn">Buy (<span id="buysLeft">3</span>)</button>
-                    
-                    <div class="card-organization">
-                        <small style="color: rgba(255,255,255,0.7); display: block; margin-bottom: 5px;">Card Organization:</small>
-                        <button class="btn-organization" onclick="autoSortBySuit()" title="Sort cards by suit, then rank">
-                            🃏 Sort by Suit
-                        </button>
-                        <button class="btn-organization" onclick="autoSortByRank()" title="Sort cards by rank, then suit">
-                            🔢 Sort by Rank
-                        </button>
-                    </div>
                 </div>
             </div>
             
@@ -742,43 +409,8 @@
                     </div>
                 </div>
                 
-                <div class="quick-reference" id="quickReference">
-                    <h4 style="cursor: pointer;" onclick="toggleQuickReference()">
-                        📋 Quick Reference <span id="refToggle">▼</span>
-                    </h4>
-                    <div id="quickRefContent" class="quick-ref-content">
-                        <div class="ref-section">
-                            <h5>Current Round Goal:</h5>
-                            <p id="currentGoal">2 Sets of 3</p>
-                        </div>
-                        <div class="ref-section">
-                            <h5>Progress Check:</h5>
-                            <div id="progressIndicator">
-                                <div class="progress-item">
-                                    <span>Requirements Met:</span>
-                                    <span id="reqMet">❌</span>
-                                </div>
-                                <div class="progress-item">
-                                    <span>Can Go Out:</span>
-                                    <span id="canGoOut">❌</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="ref-section">
-                            <h5>Next Player Alert:</h5>
-                            <div id="nextPlayerAlert" class="alert-box">
-                                <!-- Warnings about players close to winning -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
                 <div class="messages" id="messages">
                     <!-- Game messages appear here -->
-                </div>
-                
-                <div id="scoresTable">
-                    <!-- Scores will appear here -->
                 </div>
             </div>
         </div>
@@ -845,8 +477,6 @@
             round: 1,
             hand: [],
             melds: [],
-            allPlayerMelds: {},
-            handCounts: {},
             buysRemaining: 3,
             selectedCards: [],
             discardTop: null,
@@ -857,12 +487,6 @@
         };
         
         let socket = null;
-        let draggedCardIndex = null;
-        let draggedOriginalIndex = null;
-        
-        // Persistent card ordering variables
-        let localCardOrder = [];
-        let pendingReorder = false;
         
         function addMessage(text) {
             const messages = document.getElementById('messages');
@@ -884,7 +508,6 @@
             }
             
             try {
-                // Secure Socket.IO connection
                 socket = io({
                     transports: ['websocket', 'polling'],
                     timeout: 5000,
@@ -919,4 +542,727 @@
                     gameState.gameCode = sanitizeHTML(data.gameCode);
                     gameState.players = data.players.map(p => sanitizeHTML(p));
                     
-                    safeSetText(document.
+                    safeSetText(document.getElementById('displayCode'), gameState.gameCode);
+                    safeSetText(document.getElementById('playerCount'), gameState.players.length.toString());
+                    
+                    // Show players safely
+                    const playersDiv = document.getElementById('currentPlayers');
+                    if (playersDiv) {
+                        playersDiv.innerHTML = '';
+                        const header = document.createElement('h4');
+                        safeSetText(header, 'Current Players:');
+                        playersDiv.appendChild(header);
+                        
+                        gameState.players.forEach(player => {
+                            const div = document.createElement('div');
+                            div.className = 'player';
+                            const span = document.createElement('span');
+                            safeSetText(span, player);
+                            div.appendChild(span);
+                            playersDiv.appendChild(div);
+                        });
+                    }
+                    
+                    const waitingArea = document.getElementById('waitingArea');
+                    if (waitingArea) waitingArea.style.display = 'block';
+                    
+                    if (data.isHost) {
+                        const startBtn = document.getElementById('startBtn');
+                        if (startBtn) startBtn.style.display = 'block';
+                        addMessage("You are the host! Click Start Game when ready.");
+                    }
+                });
+                
+                socket.on('gameStarted', (data) => {
+                    if (!validateServerData(data)) {
+                        addMessage("❌ Invalid game start data");
+                        return;
+                    }
+                    
+                    addMessage("🎮 Game started!");
+                    updateGameState(data);
+                    showGameBoard();
+                });
+                
+                socket.on('gameUpdate', (data) => {
+                    if (!validateServerData(data)) {
+                        addMessage("❌ Invalid game update data");
+                        return;
+                    }
+                    
+                    console.log("🔄 GAME UPDATE RECEIVED:", data);
+                    updateGameState(data);
+                    updateGameUI();
+                    
+                    if (data.hand && data.hand.length < gameState.hand.length) {
+                        gameState.selectedCards = [];
+                    }
+                    
+                    addMessage("Game state updated");
+                });
+                
+                socket.on('gameMessage', (data) => {
+                    if (data && data.message) {
+                        addMessage(sanitizeHTML(data.message));
+                    }
+                });
+                
+                socket.on('gameComplete', (data) => {
+                    if (!validateServerData(data)) {
+                        addMessage("❌ Invalid game completion data");
+                        return;
+                    }
+                    
+                    console.log("🏆 GAME COMPLETE EVENT RECEIVED:", data);
+                    showFinalResults(data);
+                    addMessage(`🏆 GAME COMPLETE! Winner: ${sanitizeHTML(data.winner)} with ${data.winnerScore} points!`);
+                });
+                
+                socket.on('error', (data) => {
+                    console.error("🚨 Socket error received:", data);
+                    if (data && data.message) {
+                        addMessage("❌ Error: " + sanitizeHTML(data.message));
+                    }
+                });
+                
+            } catch (error) {
+                addMessage("❌ Connection failed: " + error.message);
+            }
+        }
+        
+        function joinGame() {
+            const playerNameInput = document.getElementById('playerName');
+            const gameCodeInput = document.getElementById('gameCode');
+            
+            if (!playerNameInput || !gameCodeInput) {
+                addMessage("❌ Form elements not found");
+                return;
+            }
+            
+            const playerName = validatePlayerName(playerNameInput.value);
+            const gameCode = validateGameCode(gameCodeInput.value);
+            
+            if (!playerName) {
+                addMessage("❌ Invalid player name. Use only letters, numbers, spaces, hyphens, and underscores (1-20 characters)");
+                return;
+            }
+            
+            if (gameCode === false) {
+                addMessage("❌ Invalid game code format");
+                return;
+            }
+            
+            if (!socket || !socket.connected) {
+                addMessage("❌ Please connect to server first");
+                return;
+            }
+            
+            gameState.myName = playerName;
+            addMessage("Joining game as " + playerName + "...");
+            
+            socket.emit('joinGame', {
+                playerName: playerName,
+                gameCode: gameCode
+            });
+        }
+        
+        function startGame() {
+            if (!socket) return;
+            
+            addMessage("Starting game...");
+            socket.emit('startGame');
+        }
+        
+        function updateGameState(data) {
+            console.log("Updating game state with:", data);
+            
+            // Safely update game state with validation
+            gameState.gameCode = sanitizeHTML(data.gameCode) || gameState.gameCode;
+            gameState.players = Array.isArray(data.players) ? data.players.map(p => sanitizeHTML(p)) : gameState.players;
+            gameState.currentPlayer = sanitizeHTML(data.currentPlayer) || gameState.currentPlayer;
+            gameState.round = Number.isInteger(data.currentRound) ? data.currentRound : gameState.round;
+            gameState.hand = Array.isArray(data.hand) ? data.hand : [];
+            gameState.melds = Array.isArray(data.melds) ? data.melds : [];
+            gameState.buysRemaining = Number.isInteger(data.buysRemaining) ? data.buysRemaining : 0;
+            gameState.discardTop = data.discardTop || null;
+            gameState.isMyTurn = data.currentPlayer === gameState.myName;
+            gameState.hasDrawn = data.turnState ? Boolean(data.turnState.hasDrawn) : false;
+            gameState.scores = (data.scores && typeof data.scores === 'object') ? data.scores : {};
+            
+            if (data.roundRequirements && typeof data.roundRequirements === 'object') {
+                gameState.roundRequirements = data.roundRequirements;
+            }
+        }
+        
+        function showGameBoard() {
+            const gameSetup = document.getElementById('gameSetup');
+            const gameBoard = document.getElementById('gameBoard');
+            const scoreboardOverlay = document.getElementById('scoreboardOverlay');
+            
+            if (gameSetup) gameSetup.style.display = 'none';
+            if (gameBoard) gameBoard.style.display = 'grid';
+            if (scoreboardOverlay) scoreboardOverlay.style.display = 'block';
+            
+            updateGameUI();
+        }
+        
+        function updateGameUI() {
+            console.log("=== UPDATING GAME UI ===");
+            
+            try {
+                // Update round info safely
+                safeSetText(document.getElementById('currentRound'), gameState.round.toString());
+                safeSetText(document.getElementById('buysLeft'), gameState.buysRemaining.toString());
+                
+                if (gameState.roundRequirements) {
+                    safeSetText(document.getElementById('requiredMelds'), gameState.roundRequirements.melds);
+                    safeSetText(document.getElementById('roundDescription'), gameState.roundRequirements.description);
+                }
+                
+                updateHand();
+                updatePlayers();
+                updateDiscardPile();
+                updateMelds();
+                updateButtons();
+                updateOverlayScoreboard();
+                
+                console.log("=== GAME UI UPDATE COMPLETE ===");
+            } catch (error) {
+                console.error("Error in updateGameUI:", error);
+                addMessage("Display update error: " + error.message);
+            }
+        }
+        
+        function updateHand() {
+            console.log("Updating hand with", gameState.hand.length, "cards");
+            
+            const handDiv = document.getElementById('playerHand');
+            const handCount = document.getElementById('handCount');
+            
+            if (!handDiv || !handCount) return;
+            
+            handDiv.innerHTML = '';
+            safeSetText(handCount, gameState.hand.length.toString());
+            
+            gameState.hand.forEach((card, index) => {
+                const cardDiv = document.createElement('div');
+                cardDiv.className = `card ${card.color}`;
+                cardDiv.dataset.index = index;
+                
+                if (gameState.selectedCards.includes(index)) {
+                    cardDiv.classList.add('selected');
+                }
+                
+                // Safely create card content
+                const topDisplay = document.createElement('div');
+                safeSetText(topDisplay, card.display);
+                
+                const bottomDisplay = document.createElement('div');
+                bottomDisplay.style.transform = 'rotate(180deg)';
+                safeSetText(bottomDisplay, card.display);
+                
+                cardDiv.appendChild(topDisplay);
+                cardDiv.appendChild(bottomDisplay);
+                
+                cardDiv.onclick = () => toggleCardSelection(index);
+                
+                handDiv.appendChild(cardDiv);
+            });
+        }
+        
+        function updatePlayers() {
+            const playersDiv = document.getElementById('playersList');
+            if (!playersDiv) return;
+            
+            playersDiv.innerHTML = '';
+            
+            gameState.players.forEach(player => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = 'player';
+                
+                if (player === gameState.currentPlayer) {
+                    playerDiv.classList.add('current-turn');
+                }
+                
+                // Safely create player display
+                const playerInfo = document.createElement('div');
+                const playerName = document.createElement('span');
+                playerName.style.fontWeight = 'bold';
+                safeSetText(playerName, player + (player === gameState.currentPlayer ? ' 👑' : ''));
+                
+                playerInfo.appendChild(playerName);
+                
+                const playerStatus = document.createElement('div');
+                playerStatus.style.textAlign = 'right';
+                safeSetText(playerStatus, player === gameState.myName ? '(You)' : '');
+                
+                playerDiv.appendChild(playerInfo);
+                playerDiv.appendChild(playerStatus);
+                playersDiv.appendChild(playerDiv);
+            });
+        }
+        
+        function updateDiscardPile() {
+            const discardDiv = document.getElementById('discardDisplay');
+            if (!discardDiv) return;
+            
+            discardDiv.innerHTML = '';
+            
+            if (gameState.discardTop) {
+                const cardDisplay = document.createElement('div');
+                cardDisplay.style.cssText = `
+                    background: white; 
+                    color: ${gameState.discardTop.color === 'red' ? '#d32f2f' : '#1976d2'}; 
+                    padding: 8px; 
+                    border-radius: 6px; 
+                    font-weight: bold;
+                    border: 2px solid #333;
+                    min-height: 40px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                `;
+                safeSetText(cardDisplay, gameState.discardTop.display);
+                
+                const label = document.createElement('small');
+                label.style.marginTop = '5px';
+                label.style.display = 'block';
+                safeSetText(label, 'Pick Up');
+                
+                discardDiv.appendChild(cardDisplay);
+                discardDiv.appendChild(label);
+            } else {
+                const noCard = document.createElement('div');
+                noCard.style.color = 'white';
+                safeSetText(noCard, 'No Card');
+                
+                const label = document.createElement('small');
+                safeSetText(label, 'Pick Up');
+                
+                discardDiv.appendChild(noCard);
+                discardDiv.appendChild(label);
+            }
+        }
+        
+        function updateMelds() {
+            const meldsDiv = document.getElementById('playerMelds');
+            if (!meldsDiv) return;
+            
+            if (gameState.melds.length === 0) {
+                meldsDiv.innerHTML = '';
+                const noMelds = document.createElement('p');
+                noMelds.style.color = 'rgba(255,255,255,0.6)';
+                safeSetText(noMelds, 'No melds yet');
+                meldsDiv.appendChild(noMelds);
+                return;
+            }
+            
+            meldsDiv.innerHTML = '';
+            gameState.melds.forEach((meld) => {
+                const meldDiv = document.createElement('div');
+                meldDiv.style.margin = '10px 0';
+                meldDiv.style.padding = '10px';
+                meldDiv.style.background = 'rgba(255,255,255,0.1)';
+                meldDiv.style.borderRadius = '8px';
+                
+                const meldType = document.createElement('strong');
+                safeSetText(meldType, meld.type.toUpperCase() + ': ');
+                meldDiv.appendChild(meldType);
+                
+                meld.cards.forEach(card => {
+                    const cardSpan = document.createElement('span');
+                    cardSpan.style.color = card.color === 'red' ? '#d32f2f' : '#1976d2';
+                    cardSpan.style.marginRight = '5px';
+                    safeSetText(cardSpan, card.display);
+                    meldDiv.appendChild(cardSpan);
+                });
+                
+                meldsDiv.appendChild(meldDiv);
+            });
+        }
+        
+        function updateButtons() {
+            const isMyTurn = gameState.isMyTurn;
+            const hasDrawn = gameState.hasDrawn;
+            const hasSelected = gameState.selectedCards.length > 0;
+            const canBuy = gameState.buysRemaining > 0 && !isMyTurn && gameState.discardTop;
+            
+            const setBtn = document.getElementById('setBtn');
+            const runBtn = document.getElementById('runBtn');
+            const discardBtn = document.getElementById('discardBtn');
+            const buyBtn = document.getElementById('buyBtn');
+            
+            if (setBtn) {
+                setBtn.disabled = !isMyTurn || !hasSelected || gameState.selectedCards.length < 3;
+                setBtn.title = !isMyTurn ? "Not your turn" : 
+                             !hasSelected ? "Select cards first" :
+                             gameState.selectedCards.length < 3 ? "Need at least 3 cards for a set" : 
+                             "Make a set with selected cards";
+            }
+            
+            if (runBtn) {
+                runBtn.disabled = !isMyTurn || !hasSelected || gameState.selectedCards.length < 4;
+                runBtn.title = !isMyTurn ? "Not your turn" : 
+                              !hasSelected ? "Select cards first" :
+                              gameState.selectedCards.length < 4 ? "Need at least 4 cards for a run" : 
+                              "Make a run with selected cards";
+            }
+            
+            if (discardBtn) {
+                const canDiscard = isMyTurn && hasDrawn && gameState.selectedCards.length === 1;
+                discardBtn.disabled = !canDiscard;
+                discardBtn.title = !isMyTurn ? "Not your turn" : 
+                                  !hasDrawn ? "Draw a card first" :
+                                  gameState.selectedCards.length !== 1 ? "Select exactly one card to discard" :
+                                  "Discard selected card";
+            }
+            
+            if (buyBtn) {
+                buyBtn.disabled = !canBuy;
+                buyBtn.title = gameState.isMyTurn ? "Cannot buy on your turn" :
+                              gameState.buysRemaining <= 0 ? "No buys remaining" :
+                              !gameState.discardTop ? "No card to buy" :
+                              "Buy the top discard card";
+            }
+        }
+        
+        function updateOverlayScoreboard() {
+            const scoresDiv = document.getElementById('overlayScoresTable');
+            if (!scoresDiv) return;
+            
+            scoresDiv.innerHTML = '';
+            
+            if (Object.keys(gameState.scores).length === 0) {
+                const noScores = document.createElement('p');
+                noScores.style.textAlign = 'center';
+                noScores.style.color = 'rgba(255,255,255,0.6)';
+                safeSetText(noScores, 'No scores yet');
+                scoresDiv.appendChild(noScores);
+                return;
+            }
+            
+            const table = document.createElement('table');
+            const headerRow = document.createElement('tr');
+            
+            const playerHeader = document.createElement('th');
+            safeSetText(playerHeader, 'Player');
+            headerRow.appendChild(playerHeader);
+            
+            for (let i = 1; i <= 7; i++) {
+                const roundHeader = document.createElement('th');
+                safeSetText(roundHeader, `R${i}`);
+                headerRow.appendChild(roundHeader);
+            }
+            
+            const totalHeader = document.createElement('th');
+            safeSetText(totalHeader, 'Total');
+            headerRow.appendChild(totalHeader);
+            table.appendChild(headerRow);
+            
+            gameState.players.forEach(player => {
+                const playerScores = gameState.scores[player] || Array(7).fill(0);
+                const total = playerScores.reduce((sum, score) => sum + (score || 0), 0);
+                
+                const row = document.createElement('tr');
+                
+                const nameCell = document.createElement('td');
+                nameCell.className = 'player-name';
+                safeSetText(nameCell, sanitizeHTML(player));
+                row.appendChild(nameCell);
+                
+                playerScores.forEach(score => {
+                    const scoreCell = document.createElement('td');
+                    safeSetText(scoreCell, score || '-');
+                    row.appendChild(scoreCell);
+                });
+                
+                const totalCell = document.createElement('td');
+                totalCell.className = 'total-score';
+                safeSetText(totalCell, total.toString());
+                row.appendChild(totalCell);
+                
+                table.appendChild(row);
+            });
+            
+            scoresDiv.appendChild(table);
+        }
+        
+        function showFinalResults(results) {
+            if (!validateServerData(results, ['winner', 'winnerScore', 'finalStandings'])) {
+                addMessage("❌ Invalid final results data");
+                return;
+            }
+            
+            const modal = document.createElement('div');
+            modal.id = 'finalResultsModal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.8);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 1000;
+            `;
+            
+            const modalContent = document.createElement('div');
+            modalContent.style.cssText = `
+                background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+                padding: 30px;
+                border-radius: 15px;
+                border: 3px solid #ffd700;
+                max-width: 600px;
+                color: white;
+                text-align: center;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            `;
+            
+            // Create content safely
+            const title = document.createElement('h1');
+            title.style.cssText = 'color: #ffd700; margin-bottom: 20px;';
+            safeSetText(title, '🏆 GAME COMPLETE! 🏆');
+            modalContent.appendChild(title);
+            
+            const winner = document.createElement('h2');
+            winner.style.marginBottom = '30px';
+            safeSetText(winner, `Winner: ${sanitizeHTML(results.winner)}`);
+            modalContent.appendChild(winner);
+            
+            const score = document.createElement('p');
+            score.style.cssText = 'font-size: 18px; margin-bottom: 30px;';
+            safeSetText(score, `Final Score: ${results.winnerScore} points`);
+            modalContent.appendChild(score);
+            
+            const standingsTitle = document.createElement('h3');
+            standingsTitle.style.cssText = 'margin-bottom: 20px; color: #ffd700;';
+            safeSetText(standingsTitle, 'Final Standings:');
+            modalContent.appendChild(standingsTitle);
+            
+            const standingsDiv = document.createElement('div');
+            standingsDiv.style.cssText = 'background: rgba(0,0,0,0.3); padding: 20px; border-radius: 10px; margin-bottom: 30px;';
+            
+            if (Array.isArray(results.finalStandings)) {
+                results.finalStandings.forEach((player, index) => {
+                    const [playerName, playerScore] = player;
+                    const stats = results.playerStats && results.playerStats[playerName];
+                    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+                    
+                    const standingDiv = document.createElement('div');
+                    standingDiv.style.cssText = `
+                        display: flex; 
+                        justify-content: space-between; 
+                        align-items: center; 
+                        padding: 10px; 
+                        background: ${index === 0 ? 'rgba(255,215,0,0.2)' : 'rgba(255,255,255,0.1)'}; 
+                        margin: 5px 0; 
+                        border-radius: 5px;
+                    `;
+                    
+                    const nameSpan = document.createElement('span');
+                    nameSpan.style.fontWeight = 'bold';
+                    safeSetText(nameSpan, `${medal} ${sanitizeHTML(playerName)}`);
+                    
+                    const scoreSpan = document.createElement('span');
+                    const roundsWon = stats ? stats.roundsWon : 0;
+                    safeSetText(scoreSpan, `${playerScore} points (${roundsWon} rounds won)`);
+                    
+                    standingDiv.appendChild(nameSpan);
+                    standingDiv.appendChild(scoreSpan);
+                    standingsDiv.appendChild(standingDiv);
+                });
+            }
+            
+            modalContent.appendChild(standingsDiv);
+            
+            const closeBtn = document.createElement('button');
+            closeBtn.style.cssText = 'background: #ff9800; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-size: 16px;';
+            safeSetText(closeBtn, 'Close');
+            closeBtn.onclick = closeFinalResults;
+            modalContent.appendChild(closeBtn);
+            
+            modal.appendChild(modalContent);
+            document.body.appendChild(modal);
+        }
+        
+        function closeFinalResults() {
+            const modal = document.getElementById('finalResultsModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+        
+        function toggleCardSelection(index) {
+            // Validate index
+            if (!Number.isInteger(index) || index < 0 || index >= gameState.hand.length) {
+                return;
+            }
+            
+            const selectedIndex = gameState.selectedCards.indexOf(index);
+            if (selectedIndex > -1) {
+                gameState.selectedCards.splice(selectedIndex, 1);
+            } else {
+                gameState.selectedCards.push(index);
+            }
+            updateHand();
+            updateButtons();
+        }
+        
+        function drawCard() {
+            if (!gameState.isMyTurn || gameState.hasDrawn) {
+                addMessage("❌ Not your turn or already drawn");
+                return;
+            }
+            
+            addMessage("Drawing from deck...");
+            socket.emit('drawCard');
+        }
+        
+        function pickUpDiscard() {
+            if (!gameState.isMyTurn || gameState.hasDrawn) {
+                addMessage("❌ Not your turn or already drawn");
+                return;
+            }
+            
+            if (!gameState.discardTop) {
+                addMessage("❌ No card in discard pile");
+                return;
+            }
+            
+            addMessage("Picking up from discard pile...");
+            socket.emit('pickUpDiscard');
+        }
+        
+        function buyCard() {
+            if (gameState.isMyTurn || gameState.buysRemaining <= 0) {
+                addMessage("❌ Cannot buy on your turn or no buys left");
+                return;
+            }
+            
+            if (!gameState.discardTop) {
+                addMessage("❌ No card to buy");
+                return;
+            }
+            
+            addMessage("Buying card...");
+            socket.emit('buyCard');
+        }
+        
+        function makeSet() {
+            if (!gameState.isMyTurn || gameState.selectedCards.length < 3) {
+                addMessage("❌ Select at least 3 cards to make a set");
+                return;
+            }
+            
+            // Validate selected card indices
+            if (!gameState.selectedCards.every(index => 
+                Number.isInteger(index) && index >= 0 && index < gameState.hand.length)) {
+                addMessage("❌ Invalid card selection");
+                return;
+            }
+            
+            addMessage(`Attempting to make set with ${gameState.selectedCards.length} cards...`);
+            
+            socket.emit('makeMeld', {
+                cardIndices: gameState.selectedCards,
+                meldType: 'set'
+            });
+        }
+        
+        function makeRun() {
+            if (!gameState.isMyTurn || gameState.selectedCards.length < 4) {
+                addMessage("❌ Select at least 4 cards to make a run");
+                return;
+            }
+            
+            // Validate selected card indices
+            if (!gameState.selectedCards.every(index => 
+                Number.isInteger(index) && index >= 0 && index < gameState.hand.length)) {
+                addMessage("❌ Invalid card selection");
+                return;
+            }
+            
+            addMessage(`Attempting to make run with ${gameState.selectedCards.length} cards...`);
+            
+            socket.emit('makeMeld', {
+                cardIndices: gameState.selectedCards,
+                meldType: 'run'
+            });
+        }
+        
+        function discardCard() {
+            if (!gameState.isMyTurn || !gameState.hasDrawn || gameState.selectedCards.length !== 1) {
+                addMessage("❌ Select exactly one card to discard after drawing");
+                return;
+            }
+            
+            const cardIndex = gameState.selectedCards[0];
+            
+            // Validate the card index
+            if (!Number.isInteger(cardIndex) || cardIndex < 0 || cardIndex >= gameState.hand.length) {
+                addMessage("❌ Invalid card selection");
+                return;
+            }
+            
+            socket.emit('discardCard', {
+                cardIndex: cardIndex
+            });
+            
+            gameState.selectedCards = [];
+        }
+        
+        // Initialize on page load
+        window.addEventListener('load', function() {
+            addMessage('Welcome to Slattery Shanghai!');
+            addMessage('Click "Connect to Server" first, then join the game.');
+            
+            // Add security event listeners
+            window.addEventListener('error', function(e) {
+                console.error('Client error:', e.error);
+                addMessage('⚠️ An error occurred. Please refresh if problems persist.');
+            });
+            
+            // Prevent common XSS vectors
+            document.addEventListener('paste', function(e) {
+                // Don't prevent paste entirely, but log suspicious activity
+                const pastedData = e.clipboardData.getData('text');
+                if (pastedData.includes('<script') || pastedData.includes('javascript:')) {
+                    console.warn('Suspicious paste content detected');
+                }
+            });
+        });
+        
+        // Add additional security measures
+        (function() {
+            // Prevent console manipulation in production
+            if (window.location.protocol === 'https:') {
+                console.log('🔒 Security mode enabled');
+                
+                // Clear console periodically in production
+                setInterval(() => {
+                    if (typeof console.clear === 'function') {
+                        console.clear();
+                    }
+                }, 30000);
+            }
+            
+            // Monitor for suspicious activity
+            let suspiciousActivity = 0;
+            
+            document.addEventListener('keydown', function(e) {
+                // Detect potential developer tools usage
+                if (e.key === 'F12' || 
+                    (e.ctrlKey && e.shiftKey && e.key === 'I') ||
+                    (e.ctrlKey && e.shiftKey && e.key === 'C')) {
+                    suspiciousActivity++;
+                    if (suspiciousActivity > 5) {
+                        console.warn('Multiple attempts to access developer tools detected');
+                    }
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
