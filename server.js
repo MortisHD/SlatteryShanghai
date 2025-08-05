@@ -3,109 +3,25 @@ const http = require('http');
 const socketIo = require('socket.io');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
-const rateLimit = require('express-rate-limit');
 
 const app = express();
 const server = http.createServer(app);
-
-// Security Configuration
-const PORT = process.env.PORT || 9494;
-const NODE_ENV = process.env.NODE_ENV || 'development';
-const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS ? 
-    process.env.ALLOWED_ORIGINS.split(',') : 
-    [
-        'http://localhost:9494',
-        'http://127.0.0.1:9494',
-        // Add your actual domains here for production
-        // 'https://yourdomain.com'
-    ];
-
-// Security Headers Middleware
-app.use((req, res, next) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('X-XSS-Protection', '1; mode=block');
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    res.setHeader('Content-Security-Policy', 
-        "default-src 'self'; " +
-        "script-src 'self' 'unsafe-inline' https://cdn.socket.io; " +
-        "style-src 'self' 'unsafe-inline'; " +
-        "img-src 'self' data:; " +
-        "connect-src 'self' ws: wss:; " +
-        "font-src 'self'; " +
-        "object-src 'none'; " +
-        "base-uri 'self'; " +
-        "form-action 'self';"
-    );
-    next();
-});
-
-// Rate Limiting
-const connectionLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // 100 requests per IP per window
-    message: 'Too many requests from this IP',
-    standardHeaders: true,
-    legacyHeaders: false,
-    skip: (req) => NODE_ENV === 'development' && req.ip === '127.0.0.1'
-});
-
-app.use(connectionLimiter);
-
-// Socket.IO with Security
 const io = socketIo(server, {
     cors: {
-        origin: ALLOWED_ORIGINS,
-        methods: ["GET", "POST"],
-        credentials: false
-    },
-    transports: ['websocket', 'polling'],
-    allowEIO3: true
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
 });
 
-// Serve static files with restrictions
-app.use(express.static(__dirname, {
-    dotfiles: 'deny',
-    index: false,
-    maxAge: '1d'
-}));
+const PORT = process.env.PORT || 9494;
+
+// Serve static files
+app.use(express.static(__dirname));
 
 // Serve the game at root path
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'slattery-shanghai.html'));
 });
-
-// Input Validation Functions
-function validatePlayerName(name) {
-    if (!name || typeof name !== 'string') return false;
-    if (name.length < 1 || name.length > 20) return false;
-    // Allow letters, numbers, spaces, hyphens, underscores only
-    if (!/^[a-zA-Z0-9\s\-_]+$/.test(name)) return false;
-    return name.trim();
-}
-
-function validateGameCode(code) {
-    if (!code) return ''; // Optional field
-    if (typeof code !== 'string') return false;
-    if (code.length > 10) return false; // Reasonable limit
-    if (!/^[A-Z0-9]+$/.test(code)) return false;
-    return code.trim().toUpperCase();
-}
-
-function sanitizeString(str) {
-    if (!str || typeof str !== 'string') return '';
-    return str.replace(/[<>\"'&]/g, ''); // Remove potentially dangerous characters
-}
-
-function handleSecurityError(socket, error, userMessage = 'Invalid request') {
-    console.error(`Security Error from ${socket.handshake.address}:`, error);
-    socket.emit('error', { message: userMessage });
-    // Consider disconnecting repeat offenders
-}
-
-// Connection tracking for rate limiting
-const activeConnections = new Map();
-const suspiciousIPs = new Set();
 
 // Game state storage
 const games = new Map();
@@ -240,7 +156,8 @@ class Game {
         this.currentRound = 1;
         this.currentPlayerIndex = 0;
         
-        console.log(`Game ${this.gameCode} starting with ${this.players.length} players`);
+        console.log(`Game starting with ${this.players.length} players`);
+        console.log(`Round 1 starting player: ${this.players[0]}`);
         
         this.dealRound();
         return true;
@@ -259,6 +176,7 @@ class Game {
 
         // Deal cards (10 + round number)
         const cardsPerPlayer = 10 + this.currentRound;
+        console.log(`Dealing ${cardsPerPlayer} cards per player for round ${this.currentRound}`);
         
         for (let i = 0; i < cardsPerPlayer; i++) {
             this.players.forEach(player => {
@@ -271,6 +189,7 @@ class Game {
         
         // Rotate starting player each round
         this.currentPlayerIndex = (this.currentRound - 1) % this.players.length;
+        console.log(`Round ${this.currentRound} starting player: ${this.getCurrentPlayer()} (index ${this.currentPlayerIndex})`);
         
         // Reset turn state
         this.turnState = {
@@ -289,27 +208,12 @@ class Game {
             hasDrawn: false,
             canBuy: true
         };
-    }
-
-    // Validate player action permissions
-    validatePlayerAction(playerName, actionType) {
-        if (actionType === 'turn' && this.getCurrentPlayer() !== playerName) {
-            return { valid: false, error: 'Not your turn' };
-        }
-        if (actionType === 'buy' && this.getCurrentPlayer() === playerName) {
-            return { valid: false, error: 'Cannot buy on your turn' };
-        }
-        return { valid: true };
+        console.log(`Turn changed to player ${this.currentPlayerIndex}: ${this.getCurrentPlayer()}`);
     }
 
     drawCard(playerName) {
-        const validation = this.validatePlayerAction(playerName, 'turn');
-        if (!validation.valid) {
-            return { success: false, message: validation.error };
-        }
-
-        if (this.turnState.hasDrawn) {
-            return { success: false, message: "Already drawn this turn" };
+        if (this.getCurrentPlayer() !== playerName || this.turnState.hasDrawn) {
+            return { success: false, message: "Not your turn or already drawn" };
         }
 
         if (this.deck.isEmpty()) {
@@ -326,17 +230,13 @@ class Game {
         this.playerHands.get(playerName).push(card);
         this.turnState.hasDrawn = true;
         
+        console.log(`${playerName} drew a card, hand now has ${this.playerHands.get(playerName).length} cards`);
         return { success: true, card };
     }
 
     pickUpDiscard(playerName) {
-        const validation = this.validatePlayerAction(playerName, 'turn');
-        if (!validation.valid) {
-            return { success: false, message: validation.error };
-        }
-
-        if (this.turnState.hasDrawn) {
-            return { success: false, message: "Already drawn this turn" };
+        if (this.getCurrentPlayer() !== playerName || this.turnState.hasDrawn) {
+            return { success: false, message: "Not your turn or already drawn" };
         }
 
         if (this.discardPile.length === 0) {
@@ -347,17 +247,13 @@ class Game {
         this.playerHands.get(playerName).push(card);
         this.turnState.hasDrawn = true;
         
+        console.log(`${playerName} picked up ${card.display}, discard pile now has ${this.discardPile.length} cards`);
         return { success: true, card };
     }
 
     buyCard(playerName) {
-        const validation = this.validatePlayerAction(playerName, 'buy');
-        if (!validation.valid) {
-            return { success: false, message: validation.error };
-        }
-
-        if (this.playerBuys.get(playerName) <= 0) {
-            return { success: false, message: "No buys remaining" };
+        if (this.getCurrentPlayer() === playerName || this.playerBuys.get(playerName) <= 0) {
+            return { success: false, message: "Cannot buy on your turn or no buys left" };
         }
 
         if (this.discardPile.length === 0) {
@@ -373,6 +269,7 @@ class Game {
                 this.deck.shuffle();
                 this.discardPile = [];
             } else {
+                console.error("Deck and discard pile both empty!");
                 return { success: false, message: "No cards left to deal" };
             }
         }
@@ -381,12 +278,18 @@ class Game {
         this.playerHands.get(playerName).push(penaltyCard);
         this.playerBuys.set(playerName, this.playerBuys.get(playerName) - 1);
         
+        console.log(`${playerName} bought ${discardCard.display}, discard pile now has ${this.discardPile.length} cards`);
         return { success: true, discardCard, penaltyCard };
     }
 
     validatePlayerMeetsRoundRequirements(playerName) {
+        console.log(`=== VALIDATING ROUND REQUIREMENTS FOR ${playerName} ===`);
+        
         const playerMelds = this.playerMelds.get(playerName) || [];
         const requirements = ROUND_REQUIREMENTS[this.currentRound - 1];
+        
+        console.log(`Round ${this.currentRound} requirements:`, requirements);
+        console.log(`Player ${playerName} has ${playerMelds.length} melds:`, playerMelds.map(m => `${m.type}(${m.cards.length})`));
         
         let validSets = 0;
         let validRuns = 0;
@@ -394,14 +297,21 @@ class Game {
         playerMelds.forEach(meld => {
             if (meld.type === 'set' && meld.cards.length >= requirements.minSetSize) {
                 validSets++;
+                console.log(`✅ Valid set found: ${meld.cards.length} cards`);
             } else if (meld.type === 'run' && meld.cards.length >= requirements.minRunSize) {
                 validRuns++;
+                console.log(`✅ Valid run found: ${meld.cards.length} cards`);
+            } else {
+                console.log(`❌ Invalid meld: ${meld.type} with ${meld.cards.length} cards`);
             }
         });
         
         const hasRequiredSets = validSets >= requirements.sets;
         const hasRequiredRuns = validRuns >= requirements.runs;
         const meetsRequirements = hasRequiredSets && hasRequiredRuns;
+        
+        console.log(`Requirements check: Sets ${validSets}/${requirements.sets}, Runs ${validRuns}/${requirements.runs}`);
+        console.log(`Meets requirements: ${meetsRequirements}`);
         
         return {
             meetsRequirements,
@@ -414,22 +324,21 @@ class Game {
     }
 
     discardCard(playerName, cardIndex) {
-        const validation = this.validatePlayerAction(playerName, 'turn');
-        if (!validation.valid) {
-            return { success: false, message: validation.error };
-        }
-
-        if (!this.turnState.hasDrawn) {
-            return { success: false, message: "Must draw a card first" };
+        console.log(`${playerName} attempting to discard card at index ${cardIndex}`);
+        
+        if (this.getCurrentPlayer() !== playerName || !this.turnState.hasDrawn) {
+            console.log(`Discard failed: current player is ${this.getCurrentPlayer()}, hasDrawn: ${this.turnState.hasDrawn}`);
+            return { success: false, message: "Not your turn or haven't drawn" };
         }
 
         const hand = this.playerHands.get(playerName);
         if (cardIndex < 0 || cardIndex >= hand.length) {
-            return { success: false, message: "Invalid card selection" };
+            return { success: false, message: "Invalid card" };
         }
 
         const discardedCard = hand.splice(cardIndex, 1)[0];
         this.discardPile.push(discardedCard);
+        console.log(`${playerName} discarded ${discardedCard.display}, discard pile now has ${this.discardPile.length} cards`);
 
         if (hand.length === 0) {
             const validation = this.validatePlayerMeetsRoundRequirements(playerName);
@@ -446,85 +355,109 @@ class Game {
                     errorMessage += `Missing ${validation.requirements.runs - validation.validRuns} more runs. `;
                 }
                 
+                console.log(`${playerName} tried to go out but doesn't meet requirements`);
                 return { success: false, message: errorMessage };
             }
             
+            console.log(`${playerName} went out and meets requirements! Ending round.`);
             const roundResult = this.endRound(playerName);
             return { success: true, card: discardedCard, roundEnded: true, roundResult };
         }
 
+        console.log(`Ending ${playerName}'s turn, moving to next player`);
         this.nextTurn();
+        console.log(`New current player: ${this.getCurrentPlayer()}`);
+        
         return { success: true, card: discardedCard };
     }
 
     validateMeld(cards, meldType) {
         if (meldType === 'set' && cards.length < 3) {
+            console.log(`Set validation failed: only ${cards.length} cards (need at least 3)`);
             return false;
         }
         
         if (meldType === 'run' && cards.length < 4) {
+            console.log(`Run validation failed: only ${cards.length} cards (need at least 4)`);
             return false;
         }
 
         if (meldType === 'set') {
             const rank = cards[0].rank;
-            return cards.every(card => card.rank === rank);
+            const isValid = cards.every(card => card.rank === rank);
+            console.log(`Set validation: rank ${rank}, all same? ${isValid}`);
+            return isValid;
         } else if (meldType === 'run') {
             const suit = cards[0].suit;
             if (!cards.every(card => card.suit === suit)) {
+                console.log(`Run validation failed: not all same suit`);
                 return false;
             }
 
             const sortedCards = cards.sort((a, b) => a.value - b.value);
+            console.log(`Run cards sorted:`, sortedCards.map(c => `${c.rank}${c.suit}`));
             
             for (let i = 1; i < sortedCards.length; i++) {
                 if (sortedCards[i].value !== sortedCards[i-1].value + 1) {
+                    console.log(`Run validation failed: gap between ${sortedCards[i-1].rank} and ${sortedCards[i].rank}`);
                     return false;
                 }
             }
+            console.log(`Run validation: passed`);
             return true;
         }
         return false;
     }
 
     makeMeld(playerName, cardIndices, meldType) {
-        const validation = this.validatePlayerAction(playerName, 'turn');
-        if (!validation.valid) {
-            return { success: false, message: validation.error };
+        console.log(`${playerName} attempting to make ${meldType} with cards at indices:`, cardIndices);
+        
+        if (this.getCurrentPlayer() !== playerName) {
+            return { success: false, message: "Not your turn" };
         }
 
         const hand = this.playerHands.get(playerName);
+        console.log(`Player hand size: ${hand.length}`);
         
-        // Validate card indices
-        if (!Array.isArray(cardIndices) || cardIndices.some(index => 
-            !Number.isInteger(index) || index < 0 || index >= hand.length)) {
-            return { success: false, message: "Invalid card selection" };
+        for (let index of cardIndices) {
+            if (index < 0 || index >= hand.length) {
+                console.log(`Invalid card index: ${index}`);
+                return { success: false, message: "Invalid card selection" };
+            }
         }
         
         const cards = cardIndices.map(index => hand[index]);
+        console.log(`Selected cards:`, cards.map(c => `${c.rank}${c.suit}`));
 
         if (!this.validateMeld(cards, meldType)) {
+            console.log(`Meld validation failed for ${meldType}`);
             return { success: false, message: `Invalid ${meldType}` };
         }
 
         const sortedIndices = [...cardIndices].sort((a, b) => b - a);
+        console.log(`Removing cards at indices:`, sortedIndices);
         
         sortedIndices.forEach(index => {
             hand.splice(index, 1);
         });
 
         this.playerMelds.get(playerName).push({ type: meldType, cards });
+        
+        console.log(`${playerName} successfully made ${meldType}, hand now has ${hand.length} cards`);
+        console.log(`Player now has ${this.playerMelds.get(playerName).length} melds`);
 
         if (hand.length === 0) {
             const validation = this.validatePlayerMeetsRoundRequirements(playerName);
             
             if (!validation.meetsRequirements) {
+                console.log(`${playerName} melded all cards but doesn't meet round requirements`);
                 return { 
                     success: false, 
                     message: `You've melded all cards but don't meet round requirements: ${ROUND_REQUIREMENTS[this.currentRound - 1].melds}` 
                 };
             }
             
+            console.log(`${playerName} went out by melding their last cards and meets requirements!`);
             const roundResult = this.endRound(playerName);
             return { success: true, meld: { type: meldType, cards }, roundEnded: true, roundResult };
         }
@@ -533,12 +466,18 @@ class Game {
     }
 
     endRound(winner) {
+        console.log(`=== ENDING ROUND ${this.currentRound} ===`);
+        console.log(`Winner: ${winner}`);
+        
         this.players.forEach(player => {
             let roundScore = 0;
             const hand = this.playerHands.get(player);
             
             if (player !== winner) {
                 roundScore = hand.reduce((sum, card) => sum + card.getScoreValue(), 0);
+                console.log(`${player} has ${hand.length} cards worth ${roundScore} points`);
+            } else {
+                console.log(`${winner} went out with 0 points`);
             }
 
             const scores = this.playerScores.get(player);
@@ -546,9 +485,11 @@ class Game {
         });
 
         if (this.currentRound >= 7) {
+            console.log("🎉 GAME COMPLETE AFTER 7 ROUNDS! 🎉");
             const finalResults = this.endGame();
             return { gameEnded: true, finalResults };
         } else {
+            console.log(`Moving to round ${this.currentRound + 1}`);
             this.currentRound++;
             this.dealRound();
             return { gameEnded: false, newRound: this.currentRound };
@@ -556,6 +497,8 @@ class Game {
     }
 
     endGame() {
+        console.log(`=== ENDING GAME ===`);
+        
         const finalScores = new Map();
         const playerStats = new Map();
         
@@ -570,11 +513,15 @@ class Game {
                 roundsWon,
                 scores: [...scores]
             });
+            
+            console.log(`${player} final score: ${total} (won ${roundsWon} rounds)`);
         });
         
         const sortedPlayers = Array.from(finalScores.entries()).sort((a, b) => a[1] - b[1]);
         const winner = sortedPlayers[0][0];
         const winnerScore = sortedPlayers[0][1];
+        
+        console.log(`🏆 GAME WINNER: ${winner} with ${winnerScore} points! 🏆`);
         
         return {
             winner,
@@ -617,355 +564,334 @@ function generateGameCode() {
 }
 
 io.on('connection', (socket) => {
-    const clientIP = socket.handshake.address;
-    
-    // Rate limit connections per IP
-    const connections = activeConnections.get(clientIP) || 0;
-    if (connections >= 5 && !ALLOWED_ORIGINS.includes('*')) {
-        console.log(`Connection limit exceeded for IP: ${clientIP}`);
-        socket.disconnect();
-        return;
-    }
-    
-    activeConnections.set(clientIP, connections + 1);
-    console.log(`Player connected from ${clientIP} (${connections + 1} active)`);
+    console.log('Player connected:', socket.id);
 
     socket.on('joinGame', (data) => {
-        try {
-            if (!data || typeof data !== 'object') {
-                handleSecurityError(socket, 'Invalid join data', 'Invalid request format');
-                return;
-            }
-
-            const playerName = validatePlayerName(data.playerName);
-            const gameCode = validateGameCode(data.gameCode);
-
-            if (!playerName) {
-                socket.emit('error', { message: 'Invalid player name. Use only letters, numbers, spaces, hyphens, and underscores (1-20 characters)' });
-                return;
-            }
-
-            if (gameCode === false) {
-                socket.emit('error', { message: 'Invalid game code format' });
-                return;
-            }
-
-            let game;
-            let finalGameCode = gameCode || generateGameCode();
-
-            if (gameCode && games.has(gameCode)) {
-                game = games.get(gameCode);
-                if (game.gameStarted) {
-                    socket.emit('error', { message: 'Game already started' });
-                    return;
-                }
-            } else {
-                game = new Game(finalGameCode, playerName);
-                games.set(finalGameCode, game);
-            }
-
-            if (!game.addPlayer(playerName)) {
-                socket.emit('error', { message: 'Player name already taken' });
-                return;
-            }
-
-            playerSockets.set(playerName, socket.id);
-            socket.playerName = playerName;
-            socket.gameCode = finalGameCode;
-            socket.join(finalGameCode);
-
-            io.to(finalGameCode).emit('playerJoined', {
-                players: game.players,
-                gameCode: finalGameCode,
-                isHost: playerName === game.hostName
-            });
-
-            console.log(`${playerName} joined game ${finalGameCode}`);
-        } catch (error) {
-            handleSecurityError(socket, error, 'Failed to join game');
+        const { playerName, gameCode } = data;
+        
+        if (!playerName) {
+            socket.emit('error', { message: 'Player name required' });
+            return;
         }
+
+        let game;
+        let finalGameCode = gameCode;
+
+        if (gameCode && games.has(gameCode)) {
+            game = games.get(gameCode);
+            if (game.gameStarted) {
+                socket.emit('error', { message: 'Game already started' });
+                return;
+            }
+        } else {
+            finalGameCode = generateGameCode();
+            game = new Game(finalGameCode, playerName);
+            games.set(finalGameCode, game);
+        }
+
+        if (!game.addPlayer(playerName)) {
+            socket.emit('error', { message: 'Player name already taken' });
+            return;
+        }
+
+        playerSockets.set(playerName, socket.id);
+        socket.playerName = playerName;
+        socket.gameCode = finalGameCode;
+        socket.join(finalGameCode);
+
+        io.to(finalGameCode).emit('playerJoined', {
+            players: game.players,
+            gameCode: finalGameCode,
+            isHost: playerName === game.hostName
+        });
+
+        console.log(`${playerName} joined game ${finalGameCode}`);
     });
 
     socket.on('startGame', () => {
-        try {
-            const game = games.get(socket.gameCode);
-            if (!game || socket.playerName !== game.hostName) {
-                socket.emit('error', { message: 'Only host can start game' });
-                return;
-            }
-
-            if (!game.startGame()) {
-                socket.emit('error', { message: 'Need at least 2 players to start' });
-                return;
-            }
-
-            game.players.forEach(playerName => {
-                const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
-                if (playerSocket) {
-                    playerSocket.emit('gameStarted', game.getGameState(playerName));
-                }
-            });
-
-            console.log(`Game ${socket.gameCode} started by ${socket.playerName}`);
-        } catch (error) {
-            handleSecurityError(socket, error, 'Failed to start game');
+        const game = games.get(socket.gameCode);
+        if (!game || socket.playerName !== game.hostName) {
+            socket.emit('error', { message: 'Only host can start game' });
+            return;
         }
+
+        if (!game.startGame()) {
+            socket.emit('error', { message: 'Need at least 2 players to start' });
+            return;
+        }
+
+        game.players.forEach(playerName => {
+            const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
+            if (playerSocket) {
+                playerSocket.emit('gameStarted', game.getGameState(playerName));
+            }
+        });
+
+        console.log(`Game ${socket.gameCode} started`);
     });
 
     socket.on('drawCard', () => {
-        try {
-            const game = games.get(socket.gameCode);
-            if (!game) return;
+        console.log(`${socket.playerName} attempting to draw card`);
+        const game = games.get(socket.gameCode);
+        if (!game) {
+            console.log('Game not found');
+            return;
+        }
 
-            const result = game.drawCard(socket.playerName);
-            
-            if (result.success) {
-                game.players.forEach(playerName => {
-                    const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
-                    if (playerSocket) {
-                        playerSocket.emit('gameUpdate', game.getGameState(playerName));
-                    }
-                });
+        const result = game.drawCard(socket.playerName);
+        console.log('Draw result:', result);
+        
+        if (result.success) {
+            game.players.forEach(playerName => {
+                const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
+                if (playerSocket) {
+                    const gameState = game.getGameState(playerName);
+                    playerSocket.emit('gameUpdate', gameState);
+                }
+            });
 
-                io.to(socket.gameCode).emit('gameMessage', {
-                    message: `${socket.playerName} drew a card`
-                });
-            } else {
-                socket.emit('error', result);
-            }
-        } catch (error) {
-            handleSecurityError(socket, error, 'Failed to draw card');
+            io.to(socket.gameCode).emit('gameMessage', {
+                message: `${socket.playerName} drew a card`
+            });
+        } else {
+            socket.emit('error', result);
         }
     });
 
     socket.on('pickUpDiscard', () => {
-        try {
-            const game = games.get(socket.gameCode);
-            if (!game) return;
+        console.log(`${socket.playerName} attempting to pick up discard`);
+        const game = games.get(socket.gameCode);
+        if (!game) {
+            console.log('Game not found');
+            return;
+        }
 
-            const result = game.pickUpDiscard(socket.playerName);
-            
-            if (result.success) {
-                game.players.forEach(playerName => {
-                    const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
-                    if (playerSocket) {
-                        playerSocket.emit('gameUpdate', game.getGameState(playerName));
-                    }
-                });
+        const result = game.pickUpDiscard(socket.playerName);
+        console.log('Pick up discard result:', result);
+        
+        if (result.success) {
+            game.players.forEach(playerName => {
+                const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
+                if (playerSocket) {
+                    const gameState = game.getGameState(playerName);
+                    playerSocket.emit('gameUpdate', gameState);
+                }
+            });
 
-                io.to(socket.gameCode).emit('gameMessage', {
-                    message: `${socket.playerName} picked up the ${result.card.display} from discard pile`
-                });
-            } else {
-                socket.emit('error', result);
-            }
-        } catch (error) {
-            handleSecurityError(socket, error, 'Failed to pick up discard');
+            io.to(socket.gameCode).emit('gameMessage', {
+                message: `${socket.playerName} picked up the ${result.card.display} from discard pile`
+            });
+        } else {
+            console.log('Pick up discard failed:', result.message);
+            socket.emit('error', result);
         }
     });
 
     socket.on('buyCard', () => {
-        try {
-            const game = games.get(socket.gameCode);
-            if (!game) return;
+        console.log(`${socket.playerName} attempting to buy card`);
+        const game = games.get(socket.gameCode);
+        if (!game) {
+            console.log('Game not found');
+            return;
+        }
 
-            const result = game.buyCard(socket.playerName);
-            
-            if (result.success) {
-                game.players.forEach(playerName => {
-                    const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
-                    if (playerSocket) {
-                        playerSocket.emit('gameUpdate', game.getGameState(playerName));
-                    }
-                });
+        const result = game.buyCard(socket.playerName);
+        console.log('Buy card result:', result);
+        
+        if (result.success) {
+            game.players.forEach(playerName => {
+                const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
+                if (playerSocket) {
+                    const gameState = game.getGameState(playerName);
+                    playerSocket.emit('gameUpdate', gameState);
+                }
+            });
 
-                io.to(socket.gameCode).emit('gameMessage', {
-                    message: `${socket.playerName} bought the ${result.discardCard.display} and drew a penalty card`
-                });
-            } else {
-                socket.emit('error', result);
-            }
-        } catch (error) {
-            handleSecurityError(socket, error, 'Failed to buy card');
+            io.to(socket.gameCode).emit('gameMessage', {
+                message: `${socket.playerName} bought the ${result.discardCard.display} and drew a penalty card`
+            });
+        } else {
+            console.log('Buy card failed:', result.message);
+            socket.emit('error', result);
         }
     });
 
     socket.on('discardCard', (data) => {
-        try {
-            if (!data || typeof data !== 'object' || !Number.isInteger(data.cardIndex)) {
-                handleSecurityError(socket, 'Invalid discard data', 'Invalid card selection');
-                return;
-            }
-
-            const game = games.get(socket.gameCode);
-            if (!game) return;
-
-            const result = game.discardCard(socket.playerName, data.cardIndex);
-            
-            if (result.success) {
-                game.players.forEach(playerName => {
-                    const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
-                    if (playerSocket) {
-                        playerSocket.emit('gameUpdate', game.getGameState(playerName));
-                    }
-                });
-
-                io.to(socket.gameCode).emit('gameMessage', {
-                    message: `${socket.playerName} discarded ${result.card.display}`
-                });
-
-                if (result.roundEnded) {
-                    io.to(socket.gameCode).emit('gameMessage', {
-                        message: `🎉 ${socket.playerName} went out! Round ${game.currentRound - 1} ended.`
-                    });
-
-                    if (result.roundResult.gameEnded && result.roundResult.finalResults && result.roundResult.finalResults.gameComplete) {
-                        setTimeout(() => {
-                            io.to(socket.gameCode).emit('gameComplete', result.roundResult.finalResults);
-                            
-                            io.to(socket.gameCode).emit('gameMessage', {
-                                message: `🏆 GAME COMPLETE! Winner: ${result.roundResult.finalResults.winner} with ${result.roundResult.finalResults.winnerScore} points! 🏆`
-                            });
-                        }, 1500);
-                    } else {
-                        setTimeout(() => {
-                            game.players.forEach(playerName => {
-                                const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
-                                if (playerSocket) {
-                                    playerSocket.emit('gameUpdate', game.getGameState(playerName));
-                                }
-                            });
-                            
-                            io.to(socket.gameCode).emit('gameMessage', {
-                                message: `Starting Round ${game.currentRound}!`
-                            });
-                        }, 1000);
-                    }
-                }
-            } else {
-                socket.emit('error', result);
-            }
-        } catch (error) {
-            handleSecurityError(socket, error, 'Failed to discard card');
+        console.log(`=== DISCARD CARD EVENT ===`);
+        console.log(`Player: ${socket.playerName}`);
+        console.log(`Data received:`, data);
+        
+        const game = games.get(socket.gameCode);
+        if (!game) {
+            console.log('❌ Game not found for code:', socket.gameCode);
+            return;
         }
+
+        const result = game.discardCard(socket.playerName, data.cardIndex);
+        console.log('Discard result:', result);
+        
+        if (result.success) {
+            console.log(`✅ Discard successful, updating all players...`);
+            
+            game.players.forEach(playerName => {
+                const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
+                if (playerSocket) {
+                    const gameState = game.getGameState(playerName);
+                    playerSocket.emit('gameUpdate', gameState);
+                }
+            });
+
+            io.to(socket.gameCode).emit('gameMessage', {
+                message: `${socket.playerName} discarded ${result.card.display}`
+            });
+
+            if (result.roundEnded) {
+                console.log(`🎉 Round ended! ${socket.playerName} went out!`);
+                
+                io.to(socket.gameCode).emit('gameMessage', {
+                    message: `🎉 ${socket.playerName} went out! Round ${game.currentRound - 1} ended.`
+                });
+
+                if (result.roundResult.gameEnded && result.roundResult.finalResults && result.roundResult.finalResults.gameComplete) {
+                    setTimeout(() => {
+                        io.to(socket.gameCode).emit('gameComplete', result.roundResult.finalResults);
+                        
+                        io.to(socket.gameCode).emit('gameMessage', {
+                            message: `🏆 GAME COMPLETE! Winner: ${result.roundResult.finalResults.winner} with ${result.roundResult.finalResults.winnerScore} points! 🏆`
+                        });
+                    }, 1500);
+                } else {
+                    setTimeout(() => {
+                        game.players.forEach(playerName => {
+                            const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
+                            if (playerSocket) {
+                                const gameState = game.getGameState(playerName);
+                                playerSocket.emit('gameUpdate', gameState);
+                            }
+                        });
+                        
+                        io.to(socket.gameCode).emit('gameMessage', {
+                            message: `Starting Round ${game.currentRound}!`
+                        });
+                    }, 1000);
+                }
+            }
+        } else {
+            console.log('❌ Discard failed:', result.message);
+            socket.emit('error', result);
+        }
+        
+        console.log(`=== END DISCARD EVENT ===`);
     });
 
     socket.on('makeMeld', (data) => {
-        try {
-            if (!data || typeof data !== 'object' || 
-                !Array.isArray(data.cardIndices) || 
-                !['set', 'run'].includes(data.meldType)) {
-                handleSecurityError(socket, 'Invalid meld data', 'Invalid meld request');
-                return;
-            }
+        console.log(`=== MAKE MELD EVENT ===`);
+        console.log(`Player: ${socket.playerName}`);
+        console.log(`Meld type: ${data.meldType}`);
+        console.log(`Card indices: ${data.cardIndices}`);
+        
+        const game = games.get(socket.gameCode);
+        if (!game) {
+            console.log('❌ Game not found');
+            return;
+        }
 
-            // Validate card indices array
-            if (data.cardIndices.length < 3 || data.cardIndices.length > 13 ||
-                data.cardIndices.some(index => !Number.isInteger(index) || index < 0)) {
-                socket.emit('error', { message: 'Invalid card selection' });
-                return;
-            }
-
-            const game = games.get(socket.gameCode);
-            if (!game) return;
-
-            const result = game.makeMeld(socket.playerName, data.cardIndices, data.meldType);
+        const result = game.makeMeld(socket.playerName, data.cardIndices, data.meldType);
+        console.log('Make meld result:', result);
+        
+        if (result.success) {
+            console.log(`✅ Meld successful, updating all players...`);
             
-            if (result.success) {
-                if (result.roundEnded) {
-                    io.to(socket.gameCode).emit('gameMessage', {
-                        message: `${socket.playerName} made a ${data.meldType} with ${result.meld.cards.length} cards`
-                    });
-                    
-                    io.to(socket.gameCode).emit('gameMessage', {
-                        message: `🎉 ${socket.playerName} went out! Round ${game.currentRound - 1} ended.`
-                    });
-                    
-                    if (result.roundResult.gameEnded && result.roundResult.finalResults && result.roundResult.finalResults.gameComplete) {
-                        setTimeout(() => {
-                            io.to(socket.gameCode).emit('gameComplete', result.roundResult.finalResults);
-                            
-                            io.to(socket.gameCode).emit('gameMessage', {
-                                message: `🏆 GAME COMPLETE! Winner: ${result.roundResult.finalResults.winner} with ${result.roundResult.finalResults.winnerScore} points! 🏆`
-                            });
-                        }, 1500);
-                    } else {
-                        setTimeout(() => {
-                            game.players.forEach(playerName => {
-                                const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
-                                if (playerSocket) {
-                                    playerSocket.emit('gameUpdate', game.getGameState(playerName));
-                                }
-                            });
-                            
-                            io.to(socket.gameCode).emit('gameMessage', {
-                                message: `Starting Round ${game.currentRound}!`
-                            });
-                        }, 1000);
-                    }
+            if (result.roundEnded) {
+                console.log(`🎉 ${socket.playerName} went out by melding their last cards!`);
+                
+                io.to(socket.gameCode).emit('gameMessage', {
+                    message: `${socket.playerName} made a ${data.meldType} with ${result.meld.cards.length} cards`
+                });
+                
+                io.to(socket.gameCode).emit('gameMessage', {
+                    message: `🎉 ${socket.playerName} went out! Round ${game.currentRound - 1} ended.`
+                });
+                
+                if (result.roundResult.gameEnded && result.roundResult.finalResults && result.roundResult.finalResults.gameComplete) {
+                    setTimeout(() => {
+                        io.to(socket.gameCode).emit('gameComplete', result.roundResult.finalResults);
+                        
+                        io.to(socket.gameCode).emit('gameMessage', {
+                            message: `🏆 GAME COMPLETE! Winner: ${result.roundResult.finalResults.winner} with ${result.roundResult.finalResults.winnerScore} points! 🏆`
+                        });
+                    }, 1500);
                 } else {
-                    game.players.forEach(playerName => {
-                        const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
-                        if (playerSocket) {
-                            playerSocket.emit('gameUpdate', game.getGameState(playerName));
-                        }
-                    });
-                    
-                    io.to(socket.gameCode).emit('gameMessage', {
-                        message: `${socket.playerName} made a ${data.meldType} with ${result.meld.cards.length} cards`
-                    });
+                    setTimeout(() => {
+                        game.players.forEach(playerName => {
+                            const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
+                            if (playerSocket) {
+                                const gameState = game.getGameState(playerName);
+                                playerSocket.emit('gameUpdate', gameState);
+                            }
+                        });
+                        
+                        io.to(socket.gameCode).emit('gameMessage', {
+                            message: `Starting Round ${game.currentRound}!`
+                        });
+                    }, 1000);
                 }
             } else {
-                socket.emit('error', result);
+                game.players.forEach(playerName => {
+                    const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
+                    if (playerSocket) {
+                        const gameState = game.getGameState(playerName);
+                        playerSocket.emit('gameUpdate', gameState);
+                    }
+                });
+                
+                io.to(socket.gameCode).emit('gameMessage', {
+                    message: `${socket.playerName} made a ${data.meldType} with ${result.meld.cards.length} cards`
+                });
             }
-        } catch (error) {
-            handleSecurityError(socket, error, 'Failed to make meld');
+        } else {
+            console.log('❌ Make meld failed:', result.message);
+            socket.emit('error', result);
         }
+        
+        console.log(`=== END MAKE MELD EVENT ===`);
     });
 
-    // Card reordering event handler with validation
+    // Card reordering event handler
     socket.on('reorderCards', (data) => {
-        try {
-            if (!data || typeof data !== 'object' || !Array.isArray(data.cardOrder)) {
-                handleSecurityError(socket, 'Invalid reorder data', 'Invalid card order');
-                return;
-            }
+        console.log(`${socket.playerName} reordering cards:`, data.cardOrder);
+        const game = games.get(socket.gameCode);
+        if (!game) {
+            console.log('Game not found');
+            return;
+        }
 
-            const game = games.get(socket.gameCode);
-            if (!game || !socket.playerName) return;
-
+        if (socket.playerName) {
             const hand = game.playerHands.get(socket.playerName);
-            if (!hand || data.cardOrder.length !== hand.length) {
-                socket.emit('error', { message: 'Invalid card order' });
-                return;
-            }
-
-            // Validate that all indices are valid and unique
-            const validOrder = data.cardOrder.every((index, pos) => 
-                Number.isInteger(index) && index >= 0 && index < hand.length
-            );
-            
-            const uniqueIndices = new Set(data.cardOrder);
-            if (validOrder && uniqueIndices.size === hand.length) {
-                const reorderedHand = data.cardOrder.map(index => hand[index]);
-                game.playerHands.set(socket.playerName, reorderedHand);
+            if (hand && data.cardOrder && data.cardOrder.length === hand.length) {
+                const validOrder = data.cardOrder.every((index, pos) => 
+                    Number.isInteger(index) && index >= 0 && index < hand.length
+                );
                 
-                const gameState = game.getGameState(socket.playerName);
-                socket.emit('gameUpdate', gameState);
-            } else {
-                socket.emit('error', { message: 'Invalid card order' });
+                const uniqueIndices = new Set(data.cardOrder);
+                if (validOrder && uniqueIndices.size === hand.length) {
+                    const reorderedHand = data.cardOrder.map(index => hand[index]);
+                    game.playerHands.set(socket.playerName, reorderedHand);
+                    
+                    console.log(`${socket.playerName} hand reordered successfully`);
+                    
+                    const gameState = game.getGameState(socket.playerName);
+                    socket.emit('gameUpdate', gameState);
+                } else {
+                    console.log(`Invalid card order from ${socket.playerName}:`, data.cardOrder);
+                    socket.emit('error', { message: 'Invalid card order' });
+                }
             }
-        } catch (error) {
-            handleSecurityError(socket, error, 'Failed to reorder cards');
         }
     });
 
     socket.on('disconnect', () => {
-        const clientIP = socket.handshake.address;
-        const current = activeConnections.get(clientIP) || 1;
-        activeConnections.set(clientIP, Math.max(0, current - 1));
-        
-        console.log(`Player disconnected from ${clientIP}`);
+        console.log('Player disconnected:', socket.id);
         
         if (socket.playerName && socket.gameCode) {
             const game = games.get(socket.gameCode);
@@ -985,65 +911,18 @@ io.on('connection', (socket) => {
             }
         }
     });
-
-    // Handle any other unexpected events
-    socket.onAny((eventName, ...args) => {
-        const allowedEvents = [
-            'joinGame', 'startGame', 'drawCard', 'pickUpDiscard', 
-            'buyCard', 'discardCard', 'makeMeld', 'reorderCards', 'disconnect'
-        ];
-        
-        if (!allowedEvents.includes(eventName)) {
-            console.log(`Suspicious event from ${socket.handshake.address}: ${eventName}`);
-            suspiciousIPs.add(socket.handshake.address);
-        }
-    });
 });
 
-// Cleanup suspicious IPs periodically
-setInterval(() => {
-    suspiciousIPs.clear();
-    // Clean up old connection counts
-    for (const [ip, count] of activeConnections.entries()) {
-        if (count <= 0) {
-            activeConnections.delete(ip);
-        }
-    }
-}, 60000); // Every minute
+server.listen(PORT, () => {
+    console.log(`Slattery Shanghai server running on port ${PORT}`);
+    console.log(`Game available at: http://localhost:${PORT}`);
+    console.log(`For network access, use your computer's IP address`);
+});
 
-// Graceful shutdown
 process.on('SIGINT', () => {
     console.log('\nShutting down Slattery Shanghai server...');
-    io.emit('serverShutdown', { message: 'Server is shutting down' });
-    
-    setTimeout(() => {
-        server.close(() => {
-            console.log('Server closed');
-            process.exit(0);
-        });
-    }, 1000);
-});
-
-process.on('SIGTERM', () => {
-    console.log('SIGTERM received, shutting down gracefully...');
     server.close(() => {
         console.log('Server closed');
         process.exit(0);
     });
-});
-
-server.listen(PORT, () => {
-    console.log(`🛡️ Secure Slattery Shanghai server running on port ${PORT}`);
-    console.log(`🔒 Security features enabled:`);
-    console.log(`   - Input validation and sanitization`);
-    console.log(`   - CORS restrictions: ${ALLOWED_ORIGINS.join(', ')}`);
-    console.log(`   - Rate limiting and connection tracking`);
-    console.log(`   - Security headers and CSP`);
-    console.log(`   - Error handling and logging`);
-    console.log(`🎮 Game available at: http://localhost:${PORT}`);
-    console.log(`📋 Environment: ${NODE_ENV}`);
-    
-    if (NODE_ENV === 'production') {
-        console.log(`⚠️  Production mode - ensure HTTPS is configured at reverse proxy level`);
-    }
 });
