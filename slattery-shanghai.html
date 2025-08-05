@@ -3,6 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' 'unsafe-inline' https://cdn.socket.io;
+        style-src 'self' 'unsafe-inline';
+        img-src 'self' data:;
+        connect-src 'self' ws: wss:;
+        font-src 'self';
+        object-src 'none';
+        base-uri 'self';
+        form-action 'self';
+    ">
     <title>Slattery Shanghai - Family Card Game</title>
     <style>
         * {
@@ -773,9 +784,57 @@
         </div>
     </div>
     
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" 
+            integrity="sha384-mZLF4UVrpi/QTWPA7BjNPEnkIfRFn9ZAC2pirBdwokM3H8tOO5P8Mv+3RJZj6n8N" 
+            crossorigin="anonymous"></script>
     <script>
         console.log("Slattery Shanghai loading...");
+        
+        // Input sanitization function
+        function sanitizeHTML(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+        
+        // Safe DOM manipulation
+        function safeSetText(element, text) {
+            if (element) {
+                element.textContent = text || '';
+            }
+        }
+        
+        // Input validation functions
+        function validatePlayerName(name) {
+            if (!name || typeof name !== 'string') return false;
+            if (name.length < 1 || name.length > 20) return false;
+            if (!/^[a-zA-Z0-9\s\-_]+$/.test(name)) return false;
+            return name.trim();
+        }
+        
+        function validateGameCode(code) {
+            if (!code) return ''; // Optional
+            if (typeof code !== 'string') return false;
+            if (code.length > 10) return false;
+            if (!/^[A-Z0-9]+$/.test(code)) return false;
+            return code.trim().toUpperCase();
+        }
+        
+        // Validate server responses
+        function validateServerData(data, expectedFields = []) {
+            if (!data || typeof data !== 'object') return false;
+            
+            // Check for required fields
+            for (const field of expectedFields) {
+                if (!(field in data)) {
+                    console.warn(`Missing required field: ${field}`);
+                    return false;
+                }
+            }
+            
+            return true;
+        }
         
         // Game state
         let gameState = {
@@ -809,7 +868,8 @@
             const messages = document.getElementById('messages');
             if (messages) {
                 const div = document.createElement('div');
-                div.textContent = new Date().toLocaleTimeString() + ': ' + text;
+                const timestamp = new Date().toLocaleTimeString();
+                safeSetText(div, `${timestamp}: ${text}`);
                 messages.appendChild(div);
                 messages.scrollTop = messages.scrollHeight;
             }
@@ -824,1051 +884,39 @@
             }
             
             try {
-                // Try to connect to the server - adjust URL as needed
+                // Secure Socket.IO connection
                 socket = io({
                     transports: ['websocket', 'polling'],
                     timeout: 5000,
-                    forceNew: true
+                    forceNew: true,
+                    autoConnect: true,
+                    reconnection: true,
+                    reconnectionAttempts: 5,
+                    reconnectionDelay: 1000
                 });
                 
                 socket.on('connect', () => {
                     addMessage("✅ Connected to server!");
-                    document.getElementById('connectionStatus').textContent = "Status: Connected";
-                    document.getElementById('joinBtn').disabled = false;
+                    safeSetText(document.getElementById('connectionStatus'), "Status: Connected");
+                    const joinBtn = document.getElementById('joinBtn');
+                    if (joinBtn) joinBtn.disabled = false;
                 });
                 
                 socket.on('disconnect', () => {
                     addMessage("❌ Disconnected from server");
-                    document.getElementById('connectionStatus').textContent = "Status: Disconnected";
-                    document.getElementById('joinBtn').disabled = true;
+                    safeSetText(document.getElementById('connectionStatus'), "Status: Disconnected");
+                    const joinBtn = document.getElementById('joinBtn');
+                    if (joinBtn) joinBtn.disabled = true;
                 });
                 
                 socket.on('playerJoined', (data) => {
+                    if (!validateServerData(data, ['gameCode', 'players'])) {
+                        addMessage("❌ Invalid server response");
+                        return;
+                    }
+                    
                     addMessage("Player joined event received");
-                    gameState.gameCode = data.gameCode;
-                    gameState.players = data.players;
+                    gameState.gameCode = sanitizeHTML(data.gameCode);
+                    gameState.players = data.players.map(p => sanitizeHTML(p));
                     
-                    document.getElementById('displayCode').textContent = data.gameCode;
-                    document.getElementById('playerCount').textContent = data.players.length;
-                    
-                    const playersDiv = document.getElementById('currentPlayers');
-                    playersDiv.innerHTML = '<h4>Current Players:</h4>';
-                    data.players.forEach(player => {
-                        const div = document.createElement('div');
-                        div.className = 'player';
-                        div.innerHTML = `<span>${player}</span>`;
-                        playersDiv.appendChild(div);
-                    });
-                    
-                    document.getElementById('waitingArea').style.display = 'block';
-                    
-                    if (data.isHost) {
-                        document.getElementById('startBtn').style.display = 'block';
-                        addMessage("You are the host! Click Start Game when ready.");
-                    }
-                });
-                
-                socket.on('gameStarted', (data) => {
-                    addMessage("🎮 Game started!");
-                    updateGameState(data);
-                    showGameBoard();
-                });
-                
-                socket.on('gameUpdate', (data) => {
-                    console.log("🔄 GAME UPDATE RECEIVED:", data);
-                    updateGameState(data);
-                    updateGameUI();
-                    
-                    if (data.hand && data.hand.length < gameState.hand.length) {
-                        gameState.selectedCards = [];
-                    }
-                    
-                    addMessage("Game state updated");
-                });
-                
-                socket.on('gameMessage', (data) => {
-                    addMessage(data.message);
-                });
-                
-                socket.on('gameComplete', (data) => {
-                    console.log("🏆 GAME COMPLETE EVENT RECEIVED:", data);
-                    showFinalResults(data);
-                    disableAllGameActions();
-                    addMessage(`🏆 GAME COMPLETE! Winner: ${data.winner} with ${data.winnerScore} points!`);
-                });
-                
-                socket.on('error', (data) => {
-                    console.error("🚨 Socket error received:", data);
-                    addMessage("❌ Error: " + data.message);
-                });
-                
-            } catch (error) {
-                addMessage("❌ Connection failed: " + error);
-            }
-        }
-        
-        function joinGame() {
-            const playerName = document.getElementById('playerName').value.trim();
-            const gameCode = document.getElementById('gameCode').value.trim();
-            
-            if (!playerName) {
-                addMessage("❌ Please enter your name");
-                return;
-            }
-            
-            if (!socket || !socket.connected) {
-                addMessage("❌ Please connect to server first");
-                return;
-            }
-            
-            gameState.myName = playerName;
-            addMessage("Joining game as " + playerName + "...");
-            
-            socket.emit('joinGame', {
-                playerName: playerName,
-                gameCode: gameCode
-            });
-        }
-        
-        function startGame() {
-            if (!socket) return;
-            
-            addMessage("Starting game...");
-            socket.emit('startGame');
-        }
-        
-        function updateGameState(data) {
-            console.log("Updating game state with:", data);
-            
-            const oldHandLength = gameState.hand.length;
-            
-            gameState.gameCode = data.gameCode;
-            gameState.players = data.players;
-            gameState.currentPlayer = data.currentPlayer;
-            gameState.round = data.currentRound;
-            gameState.melds = data.melds || [];
-            gameState.allPlayerMelds = data.allPlayerMelds || {};
-            gameState.handCounts = data.handCounts || {};
-            gameState.buysRemaining = data.buysRemaining || 0;
-            gameState.discardTop = data.discardTop;
-            gameState.isMyTurn = data.currentPlayer === gameState.myName;
-            gameState.hasDrawn = data.turnState ? data.turnState.hasDrawn : false;
-            gameState.scores = data.scores || {};
-            
-            if (data.roundRequirements) {
-                gameState.roundRequirements = data.roundRequirements;
-            }
-            
-            // Handle hand updates while preserving local card order
-            if (data.hand) {
-                const newHandLength = data.hand.length;
-                
-                if (Math.abs(newHandLength - oldHandLength) > 1) {
-                    console.log("Hand size changed significantly, resetting card order");
-                    gameState.hand = data.hand;
-                    localCardOrder = data.hand.map((_, index) => index);
-                    gameState.selectedCards = [];
-                } else if (newHandLength === oldHandLength && !pendingReorder) {
-                    gameState.hand = data.hand;
-                    if (localCardOrder.length !== newHandLength) {
-                        localCardOrder = data.hand.map((_, index) => index);
-                    }
-                } else {
-                    gameState.hand = data.hand;
-                    if (newHandLength > oldHandLength) {
-                        for (let i = localCardOrder.length; i < newHandLength; i++) {
-                            localCardOrder.push(i);
-                        }
-                    } else if (newHandLength < oldHandLength) {
-                        localCardOrder = localCardOrder.filter(index => index < newHandLength);
-                    }
-                }
-            }
-            
-            pendingReorder = false;
-        }
-        
-        function showGameBoard() {
-            document.getElementById('gameSetup').style.display = 'none';
-            document.getElementById('gameBoard').style.display = 'grid';
-            document.getElementById('scoreboardOverlay').style.display = 'block';
-            updateGameUI();
-            
-            addTouchFeedback();
-            addKeyboardShortcuts();
-        }
-        
-        function updateGameUI() {
-            console.log("=== UPDATING GAME UI ===");
-            
-            try {
-                const currentRoundEl = document.getElementById('currentRound');
-                const buysLeftEl = document.getElementById('buysLeft');
-                const requiredMeldsEl = document.getElementById('requiredMelds');
-                const roundDescriptionEl = document.getElementById('roundDescription');
-                
-                if (currentRoundEl) currentRoundEl.textContent = gameState.round;
-                if (buysLeftEl) buysLeftEl.textContent = gameState.buysRemaining;
-                
-                if (gameState.roundRequirements) {
-                    if (requiredMeldsEl) requiredMeldsEl.textContent = gameState.roundRequirements.melds;
-                    if (roundDescriptionEl) roundDescriptionEl.textContent = gameState.roundRequirements.description;
-                }
-                
-                updateHand();
-                updatePlayers();
-                updateDiscardPile();
-                updateMelds();
-                updateAllPlayerMelds();
-                updateQuickReference();
-                updateButtons();
-                updateOverlayScoreboard();
-                
-                console.log("=== GAME UI UPDATE COMPLETE ===");
-            } catch (error) {
-                console.error("Error in updateGameUI:", error);
-                addMessage("Display update error: " + error.message);
-            }
-        }
-        
-        function updateHand() {
-            console.log("Updating hand with", gameState.hand.length, "cards");
-            
-            const handDiv = document.getElementById('playerHand');
-            const handCount = document.getElementById('handCount');
-            
-            if (!handDiv || !handCount) return;
-            
-            handDiv.innerHTML = '';
-            handCount.textContent = gameState.hand.length;
-            
-            if (localCardOrder.length !== gameState.hand.length) {
-                localCardOrder = gameState.hand.map((_, index) => index);
-            }
-            
-            const cardsContainer = document.createElement('div');
-            cardsContainer.className = 'cards-container';
-            
-            const firstInsertionPoint = createInsertionPoint(0);
-            cardsContainer.appendChild(firstInsertionPoint);
-            
-            localCardOrder.forEach((originalIndex, displayPosition) => {
-                if (originalIndex >= gameState.hand.length) return;
-                
-                const card = gameState.hand[originalIndex];
-                const cardDiv = document.createElement('div');
-                cardDiv.className = `card ${card.color}`;
-                cardDiv.draggable = true;
-                cardDiv.dataset.originalIndex = originalIndex;
-                cardDiv.dataset.displayPosition = displayPosition;
-                
-                if (gameState.selectedCards.includes(originalIndex)) {
-                    cardDiv.classList.add('selected');
-                }
-                
-                cardDiv.innerHTML = `
-                    <div>${card.display}</div>
-                    <div style="transform: rotate(180deg)">${card.display}</div>
-                `;
-                
-                cardDiv.onclick = () => toggleCardSelection(originalIndex);
-                
-                cardDiv.ondragstart = (e) => handleDragStart(e, displayPosition, originalIndex);
-                cardDiv.ondragend = (e) => handleDragEnd(e);
-                
-                cardsContainer.appendChild(cardDiv);
-                
-                const insertionPoint = createInsertionPoint(displayPosition + 1);
-                cardsContainer.appendChild(insertionPoint);
-            });
-            
-            handDiv.appendChild(cardsContainer);
-        }
-        
-        function createInsertionPoint(insertPosition) {
-            const insertionPoint = document.createElement('div');
-            insertionPoint.className = 'insertion-point';
-            insertionPoint.dataset.insertPosition = insertPosition;
-            
-            insertionPoint.ondragover = (e) => handleInsertionDragOver(e);
-            insertionPoint.ondrop = (e) => handleInsertionDrop(e, insertPosition);
-            insertionPoint.ondragenter = (e) => handleInsertionDragEnter(e);
-            insertionPoint.ondragleave = (e) => handleInsertionDragLeave(e);
-            
-            return insertionPoint;
-        }
-        
-        function handleDragStart(e, displayPosition, originalIndex) {
-            draggedCardIndex = displayPosition;
-            draggedOriginalIndex = originalIndex;
-            
-            e.target.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', displayPosition.toString());
-            
-            const card = gameState.hand[originalIndex];
-            addMessage(`Dragging ${card.display}`);
-            
-            document.querySelectorAll('.insertion-point').forEach(point => {
-                point.style.background = 'rgba(255, 255, 255, 0.1)';
-                point.style.borderColor = 'rgba(255, 255, 255, 0.3)';
-                point.style.width = '12px';
-            });
-        }
-        
-        function handleInsertionDragOver(e) {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-        }
-        
-        function handleInsertionDragEnter(e) {
-            e.preventDefault();
-            if (e.target.classList.contains('insertion-point')) {
-                e.target.style.borderColor = '#4caf50';
-                e.target.style.background = 'rgba(76, 175, 80, 0.2)';
-                e.target.style.width = '16px';
-            }
-        }
-        
-        function handleInsertionDragLeave(e) {
-            if (e.target.classList.contains('insertion-point')) {
-                e.target.style.borderColor = 'rgba(255, 255, 255, 0.3)';
-                e.target.style.background = 'rgba(255, 255, 255, 0.1)';
-                e.target.style.width = '12px';
-            }
-        }
-        
-        function handleInsertionDrop(e, insertPosition) {
-            e.preventDefault();
-            
-            if (draggedCardIndex === null) return;
-            
-            console.log(`Inserting card from position ${draggedCardIndex} to position ${insertPosition}`);
-            
-            const movedCardOriginalIndex = localCardOrder[draggedCardIndex];
-            localCardOrder.splice(draggedCardIndex, 1);
-            
-            let adjustedInsertPosition = insertPosition;
-            if (draggedCardIndex < insertPosition) {
-                adjustedInsertPosition = insertPosition - 1;
-            }
-            
-            localCardOrder.splice(adjustedInsertPosition, 0, movedCardOriginalIndex);
-            
-            sendCardReorder();
-            updateHand();
-            
-            const card = gameState.hand[movedCardOriginalIndex];
-            addMessage(`Moved ${card.display} to new position`);
-        }
-        
-        function handleDragEnd(e) {
-            e.target.classList.remove('dragging');
-            draggedCardIndex = null;
-            draggedOriginalIndex = null;
-            
-            document.querySelectorAll('.insertion-point').forEach(point => {
-                point.style.background = 'transparent';
-                point.style.borderColor = 'transparent';
-                point.style.width = '8px';
-            });
-            
-            document.querySelectorAll('.drag-over').forEach(el => {
-                el.classList.remove('drag-over');
-            });
-        }
-        
-        function sendCardReorder() {
-            if (!socket || !socket.connected) return;
-            
-            console.log("Sending card reorder to server:", localCardOrder);
-            pendingReorder = true;
-            
-            socket.emit('reorderCards', {
-                cardOrder: [...localCardOrder]
-            });
-        }
-        
-        function autoSortBySuit() {
-            if (!gameState.hand.length) return;
-            
-            const suitOrder = { 'hearts': 0, 'diamonds': 1, 'clubs': 2, 'spades': 3 };
-            const rankOrder = { 'A': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13 };
-            
-            localCardOrder.sort((aIndex, bIndex) => {
-                const cardA = gameState.hand[aIndex];
-                const cardB = gameState.hand[bIndex];
-                
-                const suitCompare = suitOrder[cardA.suit] - suitOrder[cardB.suit];
-                if (suitCompare !== 0) return suitCompare;
-                
-                return rankOrder[cardA.rank] - rankOrder[cardB.rank];
-            });
-            
-            sendCardReorder();
-            updateHand();
-            addMessage('Cards sorted by suit');
-        }
-        
-        function autoSortByRank() {
-            if (!gameState.hand.length) return;
-            
-            const rankOrder = { 'A': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13 };
-            const suitOrder = { 'hearts': 0, 'diamonds': 1, 'clubs': 2, 'spades': 3 };
-            
-            localCardOrder.sort((aIndex, bIndex) => {
-                const cardA = gameState.hand[aIndex];
-                const cardB = gameState.hand[bIndex];
-                
-                const rankCompare = rankOrder[cardA.rank] - rankOrder[cardB.rank];
-                if (rankCompare !== 0) return rankCompare;
-                
-                return suitOrder[cardA.suit] - suitOrder[cardB.suit];
-            });
-            
-            sendCardReorder();
-            updateHand();
-            addMessage('Cards sorted by rank');
-        }
-        
-        function addTouchFeedback() {
-            document.addEventListener('touchstart', function(e) {
-                const card = e.target.closest('.card');
-                if (card && !card.classList.contains('selected')) {
-                    card.style.transform = 'scale(1.05)';
-                }
-            });
-            
-            document.addEventListener('touchend', function(e) {
-                const card = e.target.closest('.card');
-                if (card && !card.classList.contains('selected')) {
-                    card.style.transform = '';
-                }
-            });
-        }
-        
-        function addKeyboardShortcuts() {
-            document.addEventListener('keydown', function(e) {
-                if (!gameState.selectedCards.length || gameState.selectedCards.length !== 1) return;
-                
-                const selectedIndex = gameState.selectedCards[0];
-                const displayPosition = localCardOrder.indexOf(selectedIndex);
-                
-                if (e.key === 'ArrowLeft' && displayPosition > 0) {
-                    e.preventDefault();
-                    const temp = localCardOrder[displayPosition];
-                    localCardOrder[displayPosition] = localCardOrder[displayPosition - 1];
-                    localCardOrder[displayPosition - 1] = temp;
-                    
-                    sendCardReorder();
-                    updateHand();
-                    addMessage('Moved card left');
-                } else if (e.key === 'ArrowRight' && displayPosition < localCardOrder.length - 1) {
-                    e.preventDefault();
-                    const temp = localCardOrder[displayPosition];
-                    localCardOrder[displayPosition] = localCardOrder[displayPosition + 1];
-                    localCardOrder[displayPosition + 1] = temp;
-                    
-                    sendCardReorder();
-                    updateHand();
-                    addMessage('Moved card right');
-                }
-            });
-        }
-        
-        function updatePlayers() {
-            const playersDiv = document.getElementById('playersList');
-            if (!playersDiv) return;
-            
-            playersDiv.innerHTML = '';
-            
-            gameState.players.forEach(player => {
-                const playerDiv = document.createElement('div');
-                playerDiv.className = 'player';
-                
-                if (player === gameState.currentPlayer) {
-                    playerDiv.classList.add('current-turn');
-                }
-                
-                const handSize = gameState.handCounts[player] || (player === gameState.myName ? gameState.hand.length : '?');
-                const meldCount = gameState.allPlayerMelds[player]?.length || 0;
-                
-                playerDiv.innerHTML = `
-                    <div>
-                        <span style="font-weight: bold;">${player}${player === gameState.currentPlayer ? ' 👑' : ''}</span>
-                        <div style="font-size: 12px; color: rgba(255,255,255,0.8);">
-                            ${meldCount} meld${meldCount === 1 ? '' : 's'} | ${handSize} cards
-                        </div>
-                    </div>
-                    <div style="text-align: right;">
-                        ${player === gameState.myName ? '(You)' : ''}
-                    </div>
-                `;
-                playersDiv.appendChild(playerDiv);
-            });
-        }
-        
-        function updateDiscardPile() {
-            const discardDiv = document.getElementById('discardDisplay');
-            if (!discardDiv) return;
-            
-            if (gameState.discardTop) {
-                discardDiv.innerHTML = `
-                    <div style="
-                        background: white; 
-                        color: ${gameState.discardTop.color === 'red' ? '#d32f2f' : '#1976d2'}; 
-                        padding: 8px; 
-                        border-radius: 6px; 
-                        font-weight: bold;
-                        border: 2px solid #333;
-                        min-height: 40px;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                    ">
-                        ${gameState.discardTop.display}
-                    </div>
-                    <small style="margin-top: 5px; display: block;">Pick Up</small>
-                `;
-            } else {
-                discardDiv.innerHTML = '<div style="color: white;">No Card</div><small>Pick Up</small>';
-            }
-            
-            const discardPile = document.getElementById('discardPile');
-            if (discardPile) {
-                if (gameState.isMyTurn && !gameState.hasDrawn && gameState.discardTop) {
-                    discardPile.style.opacity = '1';
-                    discardPile.style.pointerEvents = 'auto';
-                } else {
-                    discardPile.style.opacity = '0.5';
-                    discardPile.style.pointerEvents = 'none';
-                }
-            }
-        }
-        
-        function updateMelds() {
-            const meldsDiv = document.getElementById('playerMelds');
-            if (!meldsDiv) return;
-            
-            if (gameState.melds.length === 0) {
-                meldsDiv.innerHTML = '<p style="color: rgba(255,255,255,0.6);">No melds yet</p>';
-                return;
-            }
-            
-            meldsDiv.innerHTML = '';
-            gameState.melds.forEach((meld) => {
-                const meldDiv = document.createElement('div');
-                meldDiv.style.margin = '10px 0';
-                meldDiv.style.padding = '10px';
-                meldDiv.style.background = 'rgba(255,255,255,0.1)';
-                meldDiv.style.borderRadius = '8px';
-                
-                let meldHTML = `<strong>${meld.type.toUpperCase()}:</strong> `;
-                meld.cards.forEach(card => {
-                    meldHTML += `<span style="color: ${card.color === 'red' ? '#d32f2f' : '#1976d2'}; margin-right: 5px;">${card.display}</span>`;
-                });
-                
-                meldDiv.innerHTML = meldHTML;
-                meldsDiv.appendChild(meldDiv);
-            });
-        }
-        
-        function updateAllPlayerMelds() {
-            const allMeldsDiv = document.getElementById('allPlayerMelds');
-            if (!allMeldsDiv) return;
-            
-            let totalMelds = 0;
-            Object.values(gameState.allPlayerMelds).forEach(playerMelds => {
-                totalMelds += playerMelds.length;
-            });
-            
-            if (totalMelds === 0) {
-                allMeldsDiv.innerHTML = '<p class="no-melds-message">No melds on the table yet</p>';
-                return;
-            }
-            
-            allMeldsDiv.innerHTML = '';
-            
-            const requirements = gameState.roundRequirements;
-            
-            gameState.players.forEach(playerName => {
-                const playerMelds = gameState.allPlayerMelds[playerName] || [];
-                const handCount = gameState.handCounts[playerName] || 0;
-                
-                if (playerMelds.length > 0) {
-                    const playerSection = document.createElement('div');
-                    playerSection.className = 'player-melds-section';
-                    
-                    let sets = 0;
-                    let runs = 0;
-                    playerMelds.forEach(meld => {
-                        if (meld.type === 'set' && meld.cards.length >= requirements.minSetSize) sets++;
-                        if (meld.type === 'run' && meld.cards.length >= requirements.minRunSize) runs++;
-                    });
-                    
-                    const meetsRequirements = sets >= requirements.sets && runs >= requirements.runs;
-                    const canGoOut = meetsRequirements && handCount <= 1;
-                    const closeToWinning = meetsRequirements && handCount <= 3;
-                    
-                    if (playerName === gameState.currentPlayer) {
-                        playerSection.classList.add('current-player');
-                    }
-                    if (playerName === gameState.myName) {
-                        playerSection.classList.add('my-melds');
-                    }
-                    if (canGoOut) {
-                        playerSection.classList.add('can-go-out');
-                    } else if (closeToWinning) {
-                        playerSection.classList.add('close-to-winning');
-                    }
-                    
-                    const header = document.createElement('div');
-                    header.className = 'player-melds-header';
-                    
-                    let statusBadge = '';
-                    if (meetsRequirements) {
-                        statusBadge = '<span class="requirements-met-badge">✓ Ready</span>';
-                    }
-                    
-                    header.innerHTML = `
-                        <h5>
-                            ${playerName}${playerName === gameState.currentPlayer ? ' 👑' : ''}
-                            ${statusBadge}
-                        </h5>
-                        <div>
-                            <span class="hand-count-badge">${handCount} cards left</span>
-                            <button class="melds-toggle" onclick="togglePlayerMelds('${playerName}')">
-                                ${playerMelds.length} meld${playerMelds.length === 1 ? '' : 's'}
-                            </button>
-                        </div>
-                    `;
-                    playerSection.appendChild(header);
-                    
-                    const meldsContainer = document.createElement('div');
-                    meldsContainer.className = 'melds-container';
-                    meldsContainer.id = `melds-${playerName}`;
-                    
-                    playerMelds.forEach((meld) => {
-                        const meldDiv = document.createElement('div');
-                        meldDiv.className = 'meld-display';
-                        
-                        let meldHTML = `<span class="meld-type-label">${meld.type} (${meld.cards.length})</span>`;
-                        meld.cards.forEach(card => {
-                            meldHTML += `<span class="meld-card ${card.color}" title="${card.display}">${card.display}</span>`;
-                        });
-                        
-                        meldDiv.innerHTML = meldHTML;
-                        meldsContainer.appendChild(meldDiv);
-                    });
-                    
-                    playerSection.appendChild(meldsContainer);
-                    allMeldsDiv.appendChild(playerSection);
-                }
-            });
-        }
-        
-        function togglePlayerMelds(playerName) {
-            const meldsContainer = document.getElementById(`melds-${playerName}`);
-            const playerSection = meldsContainer?.parentElement;
-            
-            if (playerSection) {
-                playerSection.classList.toggle('melds-collapsed');
-                
-                const toggleBtn = playerSection.querySelector('.melds-toggle');
-                if (toggleBtn) {
-                    const isCollapsed = playerSection.classList.contains('melds-collapsed');
-                    const meldCount = gameState.allPlayerMelds[playerName]?.length || 0;
-                    toggleBtn.textContent = isCollapsed ? 
-                        `Show ${meldCount} meld${meldCount === 1 ? '' : 's'}` : 
-                        `${meldCount} meld${meldCount === 1 ? '' : 's'}`;
-                }
-            }
-        }
-        
-        function toggleQuickReference() {
-            const quickRef = document.getElementById('quickReference');
-            const toggle = document.getElementById('refToggle');
-            
-            if (quickRef.classList.contains('quick-ref-collapsed')) {
-                quickRef.classList.remove('quick-ref-collapsed');
-                toggle.textContent = '▼';
-            } else {
-                quickRef.classList.add('quick-ref-collapsed');
-                toggle.textContent = '▶';
-            }
-        }
-        
-        function updateQuickReference() {
-            if (!gameState.roundRequirements) return;
-            
-            const goalEl = document.getElementById('currentGoal');
-            if (goalEl) {
-                goalEl.textContent = gameState.roundRequirements.melds;
-            }
-            
-            const myMelds = gameState.melds || [];
-            let mySets = 0;
-            let myRuns = 0;
-            
-            myMelds.forEach(meld => {
-                if (meld.type === 'set' && meld.cards.length >= gameState.roundRequirements.minSetSize) mySets++;
-                if (meld.type === 'run' && meld.cards.length >= gameState.roundRequirements.minRunSize) myRuns++;
-            });
-            
-            const meetsRequirements = mySets >= gameState.roundRequirements.sets && myRuns >= gameState.roundRequirements.runs;
-            const canGoOut = meetsRequirements && gameState.hand.length <= 1;
-            
-            const reqMetEl = document.getElementById('reqMet');
-            const canGoOutEl = document.getElementById('canGoOut');
-            
-            if (reqMetEl) {
-                reqMetEl.textContent = meetsRequirements ? '✅' : '❌';
-                reqMetEl.title = `Need ${gameState.roundRequirements.sets} sets, ${gameState.roundRequirements.runs} runs. Have ${mySets} sets, ${myRuns} runs`;
-            }
-            
-            if (canGoOutEl) {
-                canGoOutEl.textContent = canGoOut ? '🎯' : '❌';
-                canGoOutEl.title = canGoOut ? 'You can go out!' : 
-                                  !meetsRequirements ? 'Complete round requirements first' : 
-                                  'Need to discard down to 0 cards';
-            }
-            
-            updatePlayerAlerts();
-        }
-        
-        function updatePlayerAlerts() {
-            const alertBox = document.getElementById('nextPlayerAlert');
-            if (!alertBox || !gameState.allPlayerMelds || !gameState.handCounts) return;
-            
-            const dangerousPlayers = [];
-            const requirements = gameState.roundRequirements;
-            
-            gameState.players.forEach(player => {
-                if (player === gameState.myName) return;
-                
-                const melds = gameState.allPlayerMelds[player] || [];
-                const handCount = gameState.handCounts[player] || 0;
-                
-                let sets = 0;
-                let runs = 0;
-                
-                melds.forEach(meld => {
-                    if (meld.type === 'set' && meld.cards.length >= requirements.minSetSize) sets++;
-                    if (meld.type === 'run' && meld.cards.length >= requirements.minRunSize) runs++;
-                });
-                
-                const meetsRequirements = sets >= requirements.sets && runs >= requirements.runs;
-                const canGoOut = meetsRequirements && handCount <= 1;
-                const closeToWinning = meetsRequirements && handCount <= 3;
-                
-                if (canGoOut) {
-                    dangerousPlayers.push({
-                        name: player,
-                        status: 'CAN GO OUT!',
-                        level: 'danger',
-                        cards: handCount
-                    });
-                } else if (closeToWinning) {
-                    dangerousPlayers.push({
-                        name: player,
-                        status: `${handCount} cards left`,
-                        level: 'warning',
-                        cards: handCount
-                    });
-                }
-            });
-            
-            if (dangerousPlayers.length === 0) {
-                alertBox.innerHTML = '<span style="color: #4caf50;">All players building melds</span>';
-            } else {
-                alertBox.innerHTML = '';
-                dangerousPlayers.forEach(player => {
-                    const alertDiv = document.createElement('div');
-                    alertDiv.className = player.level === 'danger' ? 'danger-alert' : '';
-                    alertDiv.innerHTML = `⚠️ ${player.name}: ${player.status}`;
-                    alertBox.appendChild(alertDiv);
-                });
-            }
-        }
-        
-        function updateButtons() {
-            const isMyTurn = gameState.isMyTurn;
-            const hasDrawn = gameState.hasDrawn;
-            const hasSelected = gameState.selectedCards.length > 0;
-            const canBuy = gameState.buysRemaining > 0 && !isMyTurn && gameState.discardTop;
-            
-            const setBtn = document.getElementById('setBtn');
-            const runBtn = document.getElementById('runBtn');
-            const discardBtn = document.getElementById('discardBtn');
-            const buyBtn = document.getElementById('buyBtn');
-            
-            if (setBtn) {
-                setBtn.disabled = !isMyTurn || !hasSelected || gameState.selectedCards.length < 3;
-                setBtn.title = !isMyTurn ? "Not your turn" : 
-                             !hasSelected ? "Select cards first" :
-                             gameState.selectedCards.length < 3 ? "Need at least 3 cards for a set" : 
-                             "Make a set with selected cards";
-            }
-            
-            if (runBtn) {
-                runBtn.disabled = !isMyTurn || !hasSelected || gameState.selectedCards.length < 4;
-                runBtn.title = !isMyTurn ? "Not your turn" : 
-                              !hasSelected ? "Select cards first" :
-                              gameState.selectedCards.length < 4 ? "Need at least 4 cards for a run" : 
-                              "Make a run with selected cards";
-            }
-            
-            if (discardBtn) {
-                const canDiscard = isMyTurn && hasDrawn && gameState.selectedCards.length === 1;
-                discardBtn.disabled = !canDiscard;
-                discardBtn.title = !isMyTurn ? "Not your turn" : 
-                                  !hasDrawn ? "Draw a card first" :
-                                  gameState.selectedCards.length !== 1 ? "Select exactly one card to discard" :
-                                  "Discard selected card";
-            }
-            
-            if (buyBtn) {
-                buyBtn.disabled = !canBuy;
-                buyBtn.title = gameState.isMyTurn ? "Cannot buy on your turn" :
-                              gameState.buysRemaining <= 0 ? "No buys remaining" :
-                              !gameState.discardTop ? "No card to buy" :
-                              "Buy the top discard card";
-            }
-        }
-        
-        function updateOverlayScoreboard() {
-            const scoresDiv = document.getElementById('overlayScoresTable');
-            if (!scoresDiv) return;
-            
-            if (Object.keys(gameState.scores).length === 0) {
-                scoresDiv.innerHTML = '<p style="text-align: center; color: rgba(255,255,255,0.6);">No scores yet</p>';
-                return;
-            }
-            
-            let tableHTML = '<table><tr><th>Player</th>';
-            for (let i = 1; i <= 7; i++) {
-                tableHTML += `<th>R${i}</th>`;
-            }
-            tableHTML += '<th>Total</th></tr>';
-            
-            gameState.players.forEach(player => {
-                const playerScores = gameState.scores[player] || Array(7).fill(0);
-                const total = playerScores.reduce((sum, score) => sum + (score || 0), 0);
-                
-                tableHTML += `<tr><td class="player-name">${player}</td>`;
-                playerScores.forEach(score => {
-                    tableHTML += `<td>${score || '-'}</td>`;
-                });
-                tableHTML += `<td class="total-score">${total}</td></tr>`;
-            });
-            
-            tableHTML += '</table>';
-            scoresDiv.innerHTML = tableHTML;
-        }
-        
-        function showFinalResults(results) {
-            const modal = document.createElement('div');
-            modal.id = 'finalResultsModal';
-            modal.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0,0,0,0.8);
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                z-index: 1000;
-            `;
-            
-            const modalContent = document.createElement('div');
-            modalContent.style.cssText = `
-                background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-                padding: 30px;
-                border-radius: 15px;
-                border: 3px solid #ffd700;
-                max-width: 600px;
-                color: white;
-                text-align: center;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            `;
-            
-            let htmlContent = `
-                <h1 style="color: #ffd700; margin-bottom: 20px;">🏆 GAME COMPLETE! 🏆</h1>
-                <h2 style="margin-bottom: 30px;">Winner: ${results.winner}</h2>
-                <p style="font-size: 18px; margin-bottom: 30px;">Final Score: ${results.winnerScore} points</p>
-                
-                <h3 style="margin-bottom: 20px; color: #ffd700;">Final Standings:</h3>
-                <div style="background: rgba(0,0,0,0.3); padding: 20px; border-radius: 10px; margin-bottom: 30px;">
-            `;
-            
-            results.finalStandings.forEach((player, index) => {
-                const [playerName, score] = player;
-                const stats = results.playerStats[playerName];
-                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-                
-                htmlContent += `
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; 
-                                background: ${index === 0 ? 'rgba(255,215,0,0.2)' : 'rgba(255,255,255,0.1)'}; 
-                                margin: 5px 0; border-radius: 5px;">
-                        <span style="font-weight: bold;">${medal} ${playerName}</span>
-                        <span>${score} points (${stats.roundsWon} rounds won)</span>
-                    </div>
-                `;
-            });
-            
-            htmlContent += `
-                </div>
-                <button onclick="closeFinalResults()" style="
-                    background: #ff9800; color: white; border: none; padding: 12px 20px; 
-                    border-radius: 8px; cursor: pointer; font-size: 16px;">
-                    Close
-                </button>
-            `;
-            
-            modalContent.innerHTML = htmlContent;
-            modal.appendChild(modalContent);
-            document.body.appendChild(modal);
-        }
-        
-        function closeFinalResults() {
-            const modal = document.getElementById('finalResultsModal');
-            if (modal) {
-                modal.remove();
-            }
-        }
-        
-        function disableAllGameActions() {
-            const gameButtons = ['setBtn', 'runBtn', 'discardBtn', 'buyBtn'];
-            gameButtons.forEach(btnId => {
-                const btn = document.getElementById(btnId);
-                if (btn) {
-                    btn.disabled = true;
-                    btn.style.opacity = '0.3';
-                }
-            });
-            
-            const cards = document.querySelectorAll('.card');
-            cards.forEach(card => {
-                card.style.pointerEvents = 'none';
-                card.style.opacity = '0.7';
-            });
-            
-            const piles = document.querySelectorAll('.pile');
-            piles.forEach(pile => {
-                pile.style.pointerEvents = 'none';
-                pile.style.opacity = '0.5';
-            });
-        }
-        
-        function toggleCardSelection(originalIndex) {
-            const selectedIndex = gameState.selectedCards.indexOf(originalIndex);
-            if (selectedIndex > -1) {
-                gameState.selectedCards.splice(selectedIndex, 1);
-            } else {
-                gameState.selectedCards.push(originalIndex);
-            }
-            updateHand();
-            updateButtons();
-        }
-        
-        function drawCard() {
-            if (!gameState.isMyTurn || gameState.hasDrawn) {
-                addMessage("❌ Not your turn or already drawn");
-                return;
-            }
-            
-            addMessage("Drawing from deck...");
-            console.log("🎯 Sending drawCard event");
-            socket.emit('drawCard');
-        }
-        
-        function pickUpDiscard() {
-            if (!gameState.isMyTurn || gameState.hasDrawn) {
-                addMessage("❌ Not your turn or already drawn");
-                return;
-            }
-            
-            if (!gameState.discardTop) {
-                addMessage("❌ No card in discard pile");
-                return;
-            }
-            
-            addMessage("Picking up from discard pile...");
-            console.log("🎯 Sending pickUpDiscard event");
-            socket.emit('pickUpDiscard');
-        }
-        
-        function buyCard() {
-            if (gameState.isMyTurn || gameState.buysRemaining <= 0) {
-                addMessage("❌ Cannot buy on your turn or no buys left");
-                return;
-            }
-            
-            if (!gameState.discardTop) {
-                addMessage("❌ No card to buy");
-                return;
-            }
-            
-            addMessage("Buying card...");
-            console.log("🎯 BUYING CARD...");
-            socket.emit('buyCard');
-        }
-        
-        function makeSet() {
-            if (!gameState.isMyTurn || gameState.selectedCards.length < 3) {
-                addMessage("❌ Select at least 3 cards to make a set");
-                return;
-            }
-            
-            addMessage(`Attempting to make set with ${gameState.selectedCards.length} cards...`);
-            console.log("Selected card original indices:", gameState.selectedCards);
-            console.log("Selected cards:", gameState.selectedCards.map(i => gameState.hand[i]?.display));
-            
-            socket.emit('makeMeld', {
-                cardIndices: gameState.selectedCards,
-                meldType: 'set'
-            });
-        }
-        
-        function makeRun() {
-            if (!gameState.isMyTurn || gameState.selectedCards.length < 4) {
-                addMessage("❌ Select at least 4 cards to make a run");
-                return;
-            }
-            
-            addMessage(`Attempting to make run with ${gameState.selectedCards.length} cards...`);
-            console.log("Selected card original indices:", gameState.selectedCards);
-            console.log("Selected cards:", gameState.selectedCards.map(i => gameState.hand[i]?.display));
-            
-            socket.emit('makeMeld', {
-                cardIndices: gameState.selectedCards,
-                meldType: 'run'
-            });
-        }
-        
-        function discardCard() {
-            if (!gameState.isMyTurn || !gameState.hasDrawn || gameState.selectedCards.length !== 1) {
-                addMessage("❌ Select exactly one card to discard after drawing");
-                return;
-            }
-            
-            const originalIndex = gameState.selectedCards[0];
-            console.log("🎯 Sending discardCard event with original index:", originalIndex);
-            
-            socket.emit('discardCard', {
-                cardIndex: originalIndex
-            });
-            
-            gameState.selectedCards = [];
-        }
-        
-        // Initialize on page load
-        window.addEventListener('load', function() {
-            addMessage('Welcome to Slattery Shanghai!');
-            addMessage('Click "Connect to Server" first, then join the game.');
-        });
-    </script>
-</body>
-</html>
+                    safeSetText(document.
