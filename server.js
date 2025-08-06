@@ -38,6 +38,12 @@ const ROUND_REQUIREMENTS = [
     { round: 7, melds: "3 Runs of 4", description: "Three runs of four cards each", sets: 0, runs: 3, minSetSize: 0, minRunSize: 4 }
 ];
 
+// AI player names
+const AI_NAMES = [
+    'AI-Emma', 'AI-Oliver', 'AI-Sofia', 'AI-Lucas', 'AI-Grace',
+    'AI-Henry', 'AI-Chloe', 'AI-Jack', 'AI-Maya', 'AI-Leo'
+];
+
 class Card {
     constructor(suit, rank) {
         this.suit = suit;
@@ -107,10 +113,187 @@ class Deck {
     }
 }
 
+class AIPlayer {
+    constructor(name, difficulty = 'medium') {
+        this.name = name;
+        this.difficulty = difficulty; // 'easy', 'medium', 'hard'
+        this.isAI = true;
+    }
+
+    // AI decision making for different difficulties
+    getDecisionDelay() {
+        switch (this.difficulty) {
+            case 'easy': return 2000 + Math.random() * 2000; // 2-4 seconds
+            case 'medium': return 1500 + Math.random() * 1500; // 1.5-3 seconds
+            case 'hard': return 1000 + Math.random() * 1000; // 1-2 seconds
+            default: return 2000;
+        }
+    }
+
+    shouldBuyCard(game, discardCard) {
+        if (this.buysRemaining <= 0) return false;
+        
+        const hand = game.playerHands.get(this.name);
+        const requirements = ROUND_REQUIREMENTS[game.currentRound - 1];
+        
+        // Check if the discard card helps complete sets or runs
+        const cardValue = this.evaluateCardValue(discardCard, hand, requirements);
+        
+        switch (this.difficulty) {
+            case 'easy': return Math.random() < 0.2 && cardValue > 3;
+            case 'medium': return cardValue > 5;
+            case 'hard': return cardValue > 4;
+            default: return false;
+        }
+    }
+
+    evaluateCardValue(card, hand, requirements) {
+        let value = 0;
+        
+        // Count matching ranks for sets
+        const sameRank = hand.filter(c => c.rank === card.rank).length;
+        if (sameRank >= 2) value += (sameRank * 3);
+        
+        // Count potential runs
+        const sameSuit = hand.filter(c => c.suit === card.suit);
+        sameSuit.forEach(c => {
+            const diff = Math.abs(c.value - card.value);
+            if (diff === 1) value += 4;
+            if (diff === 2) value += 2;
+        });
+        
+        return value;
+    }
+
+    chooseBestMeld(game) {
+        const hand = game.playerHands.get(this.name);
+        const requirements = ROUND_REQUIREMENTS[game.currentRound - 1];
+        
+        // Find all possible melds
+        const possibleSets = this.findPossibleSets(hand);
+        const possibleRuns = this.findPossibleRuns(hand);
+        
+        // Prioritize based on round requirements
+        let bestMeld = null;
+        let bestScore = 0;
+        
+        // Check sets first if we need them
+        if (requirements.sets > 0) {
+            possibleSets.forEach(set => {
+                const score = this.scoreMeld(set, 'set', requirements);
+                if (score > bestScore) {
+                    bestMeld = { cards: set, type: 'set' };
+                    bestScore = score;
+                }
+            });
+        }
+        
+        // Check runs if we need them
+        if (requirements.runs > 0) {
+            possibleRuns.forEach(run => {
+                const score = this.scoreMeld(run, 'run', requirements);
+                if (score > bestScore) {
+                    bestMeld = { cards: run, type: 'run' };
+                    bestScore = score;
+                }
+            });
+        }
+        
+        return bestMeld;
+    }
+
+    findPossibleSets(hand) {
+        const sets = [];
+        const rankGroups = {};
+        
+        hand.forEach((card, index) => {
+            if (!rankGroups[card.rank]) rankGroups[card.rank] = [];
+            rankGroups[card.rank].push({ card, index });
+        });
+        
+        Object.values(rankGroups).forEach(group => {
+            if (group.length >= 3) {
+                // Try all combinations of 3+ cards
+                for (let size = 3; size <= group.length; size++) {
+                    const indices = group.slice(0, size).map(item => item.index);
+                    sets.push(indices);
+                }
+            }
+        });
+        
+        return sets;
+    }
+
+    findPossibleRuns(hand) {
+        const runs = [];
+        const suitGroups = {};
+        
+        hand.forEach((card, index) => {
+            if (!suitGroups[card.suit]) suitGroups[card.suit] = [];
+            suitGroups[card.suit].push({ card, index });
+        });
+        
+        Object.values(suitGroups).forEach(group => {
+            if (group.length >= 4) {
+                group.sort((a, b) => a.card.value - b.card.value);
+                
+                // Find consecutive sequences
+                for (let start = 0; start < group.length - 3; start++) {
+                    let sequence = [start];
+                    
+                    for (let i = start + 1; i < group.length; i++) {
+                        if (group[i].card.value === group[sequence[sequence.length - 1]].card.value + 1) {
+                            sequence.push(i);
+                        } else if (group[i].card.value > group[sequence[sequence.length - 1]].card.value + 1) {
+                            break;
+                        }
+                    }
+                    
+                    if (sequence.length >= 4) {
+                        const indices = sequence.map(pos => group[pos].index);
+                        runs.push(indices);
+                    }
+                }
+            }
+        });
+        
+        return runs;
+    }
+
+    scoreMeld(cardIndices, type, requirements) {
+        let score = cardIndices.length * 2;
+        
+        // Bonus for meeting round requirements
+        if ((type === 'set' && requirements.sets > 0) || 
+            (type === 'run' && requirements.runs > 0)) {
+            score += 10;
+        }
+        
+        return score;
+    }
+
+    chooseDiscardCard(game) {
+        const hand = game.playerHands.get(this.name);
+        let worstCardIndex = 0;
+        let worstScore = Infinity;
+        
+        hand.forEach((card, index) => {
+            const score = this.evaluateCardValue(card, hand.filter((_, i) => i !== index), ROUND_REQUIREMENTS[game.currentRound - 1]);
+            if (score < worstScore) {
+                worstScore = score;
+                worstCardIndex = index;
+            }
+        });
+        
+        return worstCardIndex;
+    }
+}
+
 class Game {
-    constructor(gameCode, hostName) {
+    constructor(gameCode, hostName, aiCount = 0) {
         this.gameCode = gameCode;
         this.players = [];
+        this.aiPlayers = new Map(); // Store AI player instances
         this.playerHands = new Map();
         this.playerMelds = new Map();
         this.playerBuys = new Map();
@@ -125,6 +308,18 @@ class Game {
             hasDrawn: false,
             canBuy: true
         };
+        
+        // Add AI players
+        for (let i = 0; i < aiCount; i++) {
+            const aiName = AI_NAMES[i % AI_NAMES.length] + (Math.floor(i / AI_NAMES.length) > 0 ? `-${Math.floor(i / AI_NAMES.length) + 1}` : '');
+            const difficulty = ['easy', 'medium', 'hard'][Math.floor(Math.random() * 3)];
+            const aiPlayer = new AIPlayer(aiName, difficulty);
+            
+            this.players.push(aiName);
+            this.aiPlayers.set(aiName, aiPlayer);
+            this.playerScores.set(aiName, Array(7).fill(0));
+            console.log(`Added AI player: ${aiName} (${difficulty})`);
+        }
     }
 
     addPlayer(playerName) {
@@ -144,6 +339,7 @@ class Game {
             this.playerMelds.delete(playerName);
             this.playerBuys.delete(playerName);
             this.playerScores.delete(playerName);
+            this.aiPlayers.delete(playerName);
             return true;
         }
         return false;
@@ -160,6 +356,12 @@ class Game {
         console.log(`Round 1 starting player: ${this.players[0]}`);
         
         this.dealRound();
+        
+        // Start AI turn if first player is AI
+        if (this.aiPlayers.has(this.getCurrentPlayer())) {
+            this.scheduleAITurn();
+        }
+        
         return true;
     }
 
@@ -209,6 +411,243 @@ class Game {
             canBuy: true
         };
         console.log(`Turn changed to player ${this.currentPlayerIndex}: ${this.getCurrentPlayer()}`);
+        
+        // Schedule AI turn if next player is AI
+        if (this.aiPlayers.has(this.getCurrentPlayer())) {
+            this.scheduleAITurn();
+        }
+    }
+
+    scheduleAITurn() {
+        const currentPlayer = this.getCurrentPlayer();
+        const aiPlayer = this.aiPlayers.get(currentPlayer);
+        
+        if (!aiPlayer) return;
+        
+        const delay = aiPlayer.getDecisionDelay();
+        console.log(`Scheduling AI turn for ${currentPlayer} in ${delay}ms`);
+        
+        setTimeout(() => {
+            if (this.getCurrentPlayer() === currentPlayer && this.gameStarted) {
+                this.executeAITurn(currentPlayer);
+            }
+        }, delay);
+    }
+
+    executeAITurn(playerName) {
+        const aiPlayer = this.aiPlayers.get(playerName);
+        if (!aiPlayer || this.getCurrentPlayer() !== playerName) return;
+        
+        console.log(`Executing AI turn for ${playerName}`);
+        
+        // First, draw a card or pick up discard
+        let drewCard = false;
+        if (this.discardPile.length > 0 && Math.random() < 0.3) { // 30% chance to pick up discard
+            const result = this.pickUpDiscard(playerName);
+            if (result.success) {
+                drewCard = true;
+                this.broadcastMessage(`${playerName} picked up the ${result.card.display} from discard pile`);
+            }
+        }
+        
+        if (!drewCard) {
+            const result = this.drawCard(playerName);
+            if (result.success) {
+                this.broadcastMessage(`${playerName} drew a card`);
+            }
+        }
+        
+        // Try to make melds
+        setTimeout(() => {
+            this.tryAIMelds(playerName);
+            
+            // Then discard
+            setTimeout(() => {
+                this.aiDiscardCard(playerName);
+            }, 500);
+        }, 1000);
+    }
+
+    tryAIMelds(playerName) {
+        const aiPlayer = this.aiPlayers.get(playerName);
+        if (!aiPlayer) return;
+        
+        let madeAMeld = true;
+        while (madeAMeld) {
+            const bestMeld = aiPlayer.chooseBestMeld(this);
+            if (bestMeld && bestMeld.cards.length >= (bestMeld.type === 'set' ? 3 : 4)) {
+                const result = this.makeMeld(playerName, bestMeld.cards, bestMeld.type);
+                if (result.success) {
+                    this.broadcastMessage(`${playerName} made a ${bestMeld.type} with ${bestMeld.cards.length} cards`);
+                    
+                    if (result.roundEnded) {
+                        this.handleRoundEnd(result.roundResult);
+                        return;
+                    }
+                } else {
+                    madeAMeld = false;
+                }
+            } else {
+                madeAMeld = false;
+            }
+        }
+    }
+
+    aiDiscardCard(playerName) {
+        const aiPlayer = this.aiPlayers.get(playerName);
+        if (!aiPlayer || this.getCurrentPlayer() !== playerName) return;
+        
+        const discardIndex = aiPlayer.chooseDiscardCard(this);
+        const result = this.discardCard(playerName, discardIndex);
+        
+        if (result.success) {
+            this.broadcastMessage(`${playerName} discarded ${result.card.display}`);
+            this.broadcastGameUpdate();
+            
+            if (result.roundEnded) {
+                this.handleRoundEnd(result.roundResult);
+            }
+        }
+    }
+
+    // Handle AI buying cards
+    processAIBuys(gameCode) {
+        if (!this.discardPile.length) return;
+        
+        const discardCard = this.discardPile[this.discardPile.length - 1];
+        
+        // Check all AI players (except current player) for buying interest
+        this.players.forEach(playerName => {
+            if (this.getCurrentPlayer() !== playerName && this.aiPlayers.has(playerName)) {
+                const aiPlayer = this.aiPlayers.get(playerName);
+                const buysRemaining = this.playerBuys.get(playerName) || 0;
+                
+                if (buysRemaining > 0 && aiPlayer.shouldBuyCard(this, discardCard)) {
+                    setTimeout(() => {
+                        const result = this.buyCard(playerName);
+                        if (result.success) {
+                            this.broadcastMessage(`${playerName} bought the ${result.discardCard.display} and drew a penalty card`);
+                            this.broadcastGameUpdate();
+                        }
+                    }, Math.random() * 2000 + 500); // Random delay 0.5-2.5 seconds
+                }
+            }
+        });
+    }
+
+    broadcastMessage(message) {
+        if (io && this.gameCode) {
+            io.to(this.gameCode).emit('gameMessage', { message });
+        }
+    }
+
+    broadcastGameUpdate() {
+        if (!io || !this.gameCode) return;
+        
+        this.players.forEach(playerName => {
+            if (!this.aiPlayers.has(playerName)) { // Only send to human players
+                const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
+                if (playerSocket) {
+                    const gameState = this.getGameState(playerName);
+                    playerSocket.emit('gameUpdate', gameState);
+                }
+            }
+        });
+    }
+
+    handleRoundEnd(roundResult) {
+        this.broadcastMessage(`🎉 Round ended!`);
+        
+        if (roundResult.gameEnded && roundResult.finalResults) {
+            setTimeout(() => {
+                io.to(this.gameCode).emit('gameComplete', roundResult.finalResults);
+                this.broadcastMessage(`🏆 GAME COMPLETE! Winner: ${roundResult.finalResults.winner} with ${roundResult.finalResults.winnerScore} points! 🏆`);
+            }, 1500);
+        } else {
+            setTimeout(() => {
+                this.broadcastGameUpdate();
+                this.broadcastMessage(`Starting Round ${this.currentRound}!`);
+                
+                // Start new round with AI if needed
+                if (this.aiPlayers.has(this.getCurrentPlayer())) {
+                    this.scheduleAITurn();
+                }
+            }, 2000);
+        }
+    }
+
+    // NEW: Lay-off functionality
+    layOffCard(playerName, cardIndex, targetPlayerName, meldIndex) {
+        console.log(`${playerName} attempting to lay off card ${cardIndex} to ${targetPlayerName}'s meld ${meldIndex}`);
+        
+        if (this.getCurrentPlayer() !== playerName) {
+            return { success: false, message: "Not your turn" };
+        }
+
+        const hand = game.playerHands.get(playerName);
+        if (cardIndex < 0 || cardIndex >= hand.length) {
+            return { success: false, message: "Invalid card" };
+        }
+
+        const targetMelds = this.playerMelds.get(targetPlayerName);
+        if (!targetMelds || meldIndex < 0 || meldIndex >= targetMelds.length) {
+            return { success: false, message: "Invalid target meld" };
+        }
+
+        const card = hand[cardIndex];
+        const targetMeld = targetMelds[meldIndex];
+        
+        // Check if card can be added to the meld
+        if (!this.canLayOffCard(card, targetMeld)) {
+            return { success: false, message: "Card cannot be added to that meld" };
+        }
+
+        // Add card to the meld
+        hand.splice(cardIndex, 1);
+        targetMeld.cards.push(card);
+
+        console.log(`${playerName} laid off ${card.display} to ${targetPlayerName}'s ${targetMeld.type}`);
+
+        // Check if player went out
+        if (hand.length === 0) {
+            const validation = this.validatePlayerMeetsRoundRequirements(playerName);
+            
+            if (!validation.meetsRequirements) {
+                // Put card back
+                hand.splice(cardIndex, 0, card);
+                targetMeld.cards.pop();
+                
+                return { 
+                    success: false, 
+                    message: `Cannot go out! You need: ${ROUND_REQUIREMENTS[this.currentRound - 1].melds}` 
+                };
+            }
+            
+            console.log(`${playerName} went out by laying off their last card!`);
+            const roundResult = this.endRound(playerName);
+            return { success: true, card, layOff: true, roundEnded: true, roundResult };
+        }
+
+        return { success: true, card, layOff: true };
+    }
+
+    canLayOffCard(card, meld) {
+        if (meld.type === 'set') {
+            // Card must match the rank of the set
+            return meld.cards.every(meldCard => meldCard.rank === card.rank);
+        } else if (meld.type === 'run') {
+            // Card must extend the run (same suit, consecutive value)
+            const suit = meld.cards[0].suit;
+            if (card.suit !== suit) return false;
+
+            const values = meld.cards.map(c => c.value).sort((a, b) => a - b);
+            const cardValue = card.value;
+            
+            // Check if card extends the run at either end
+            return cardValue === values[0] - 1 || cardValue === values[values.length - 1] + 1;
+        }
+        
+        return false;
     }
 
     drawCard(playerName) {
@@ -231,6 +670,12 @@ class Game {
         this.turnState.hasDrawn = true;
         
         console.log(`${playerName} drew a card, hand now has ${this.playerHands.get(playerName).length} cards`);
+        
+        // Process AI buying opportunities after a human draws
+        if (!this.aiPlayers.has(playerName)) {
+            setTimeout(() => this.processAIBuys(), 1000);
+        }
+        
         return { success: true, card };
     }
 
@@ -367,6 +812,11 @@ class Game {
         console.log(`Ending ${playerName}'s turn, moving to next player`);
         this.nextTurn();
         console.log(`New current player: ${this.getCurrentPlayer()}`);
+        
+        // Process AI buying opportunities after discard
+        if (!this.aiPlayers.has(playerName)) {
+            setTimeout(() => this.processAIBuys(), 500);
+        }
         
         return { success: true, card: discardedCard };
     }
@@ -511,10 +961,11 @@ class Game {
             playerStats.set(player, {
                 total,
                 roundsWon,
-                scores: [...scores]
+                scores: [...scores],
+                isAI: this.aiPlayers.has(player)
             });
             
-            console.log(`${player} final score: ${total} (won ${roundsWon} rounds)`);
+            console.log(`${player} final score: ${total} (won ${roundsWon} rounds) ${this.aiPlayers.has(player) ? '[AI]' : '[Human]'}`);
         });
         
         const sortedPlayers = Array.from(finalScores.entries()).sort((a, b) => a[1] - b[1]);
@@ -554,7 +1005,8 @@ class Game {
             gameStarted: this.gameStarted,
             handCounts: Object.fromEntries(
                 this.players.map(player => [player, this.playerHands.get(player)?.length || 0])
-            )
+            ),
+            aiPlayers: Array.from(this.aiPlayers.keys()) // Send list of AI players to client
         };
     }
 }
@@ -567,7 +1019,7 @@ io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
 
     socket.on('joinGame', (data) => {
-        const { playerName, gameCode } = data;
+        const { playerName, gameCode, aiCount } = data;
         
         if (!playerName) {
             socket.emit('error', { message: 'Player name required' });
@@ -585,8 +1037,10 @@ io.on('connection', (socket) => {
             }
         } else {
             finalGameCode = generateGameCode();
-            game = new Game(finalGameCode, playerName);
+            const aiPlayerCount = aiCount || 0;
+            game = new Game(finalGameCode, playerName, aiPlayerCount);
             games.set(finalGameCode, game);
+            console.log(`Created new game ${finalGameCode} with ${aiPlayerCount} AI players`);
         }
 
         if (!game.addPlayer(playerName)) {
@@ -602,7 +1056,8 @@ io.on('connection', (socket) => {
         io.to(finalGameCode).emit('playerJoined', {
             players: game.players,
             gameCode: finalGameCode,
-            isHost: playerName === game.hostName
+            isHost: playerName === game.hostName,
+            aiPlayers: Array.from(game.aiPlayers.keys())
         });
 
         console.log(`${playerName} joined game ${finalGameCode}`);
@@ -621,9 +1076,11 @@ io.on('connection', (socket) => {
         }
 
         game.players.forEach(playerName => {
-            const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
-            if (playerSocket) {
-                playerSocket.emit('gameStarted', game.getGameState(playerName));
+            if (!game.aiPlayers.has(playerName)) { // Only send to human players
+                const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
+                if (playerSocket) {
+                    playerSocket.emit('gameStarted', game.getGameState(playerName));
+                }
             }
         });
 
@@ -642,17 +1099,8 @@ io.on('connection', (socket) => {
         console.log('Draw result:', result);
         
         if (result.success) {
-            game.players.forEach(playerName => {
-                const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
-                if (playerSocket) {
-                    const gameState = game.getGameState(playerName);
-                    playerSocket.emit('gameUpdate', gameState);
-                }
-            });
-
-            io.to(socket.gameCode).emit('gameMessage', {
-                message: `${socket.playerName} drew a card`
-            });
+            game.broadcastGameUpdate();
+            game.broadcastMessage(`${socket.playerName} drew a card`);
         } else {
             socket.emit('error', result);
         }
@@ -670,17 +1118,8 @@ io.on('connection', (socket) => {
         console.log('Pick up discard result:', result);
         
         if (result.success) {
-            game.players.forEach(playerName => {
-                const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
-                if (playerSocket) {
-                    const gameState = game.getGameState(playerName);
-                    playerSocket.emit('gameUpdate', gameState);
-                }
-            });
-
-            io.to(socket.gameCode).emit('gameMessage', {
-                message: `${socket.playerName} picked up the ${result.card.display} from discard pile`
-            });
+            game.broadcastGameUpdate();
+            game.broadcastMessage(`${socket.playerName} picked up the ${result.card.display} from discard pile`);
         } else {
             console.log('Pick up discard failed:', result.message);
             socket.emit('error', result);
@@ -699,21 +1138,45 @@ io.on('connection', (socket) => {
         console.log('Buy card result:', result);
         
         if (result.success) {
-            game.players.forEach(playerName => {
-                const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
-                if (playerSocket) {
-                    const gameState = game.getGameState(playerName);
-                    playerSocket.emit('gameUpdate', gameState);
-                }
-            });
-
-            io.to(socket.gameCode).emit('gameMessage', {
-                message: `${socket.playerName} bought the ${result.discardCard.display} and drew a penalty card`
-            });
+            game.broadcastGameUpdate();
+            game.broadcastMessage(`${socket.playerName} bought the ${result.discardCard.display} and drew a penalty card`);
         } else {
             console.log('Buy card failed:', result.message);
             socket.emit('error', result);
         }
+    });
+
+    // NEW: Lay-off event handler
+    socket.on('layOffCard', (data) => {
+        console.log(`=== LAY OFF CARD EVENT ===`);
+        console.log(`Player: ${socket.playerName}`);
+        console.log(`Data received:`, data);
+        
+        const game = games.get(socket.gameCode);
+        if (!game) {
+            console.log('❌ Game not found for code:', socket.gameCode);
+            return;
+        }
+
+        const result = game.layOffCard(socket.playerName, data.cardIndex, data.targetPlayer, data.meldIndex);
+        console.log('Lay-off result:', result);
+        
+        if (result.success) {
+            console.log(`✅ Lay-off successful, updating all players...`);
+            
+            game.broadcastGameUpdate();
+            game.broadcastMessage(`${socket.playerName} laid off ${result.card.display} to ${data.targetPlayer}'s meld`);
+
+            if (result.roundEnded) {
+                console.log(`🎉 Round ended! ${socket.playerName} went out by laying off!`);
+                game.handleRoundEnd(result.roundResult);
+            }
+        } else {
+            console.log('❌ Lay-off failed:', result.message);
+            socket.emit('error', result);
+        }
+        
+        console.log(`=== END LAY OFF EVENT ===`);
     });
 
     socket.on('discardCard', (data) => {
@@ -733,48 +1196,12 @@ io.on('connection', (socket) => {
         if (result.success) {
             console.log(`✅ Discard successful, updating all players...`);
             
-            game.players.forEach(playerName => {
-                const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
-                if (playerSocket) {
-                    const gameState = game.getGameState(playerName);
-                    playerSocket.emit('gameUpdate', gameState);
-                }
-            });
-
-            io.to(socket.gameCode).emit('gameMessage', {
-                message: `${socket.playerName} discarded ${result.card.display}`
-            });
+            game.broadcastGameUpdate();
+            game.broadcastMessage(`${socket.playerName} discarded ${result.card.display}`);
 
             if (result.roundEnded) {
                 console.log(`🎉 Round ended! ${socket.playerName} went out!`);
-                
-                io.to(socket.gameCode).emit('gameMessage', {
-                    message: `🎉 ${socket.playerName} went out! Round ${game.currentRound - 1} ended.`
-                });
-
-                if (result.roundResult.gameEnded && result.roundResult.finalResults && result.roundResult.finalResults.gameComplete) {
-                    setTimeout(() => {
-                        io.to(socket.gameCode).emit('gameComplete', result.roundResult.finalResults);
-                        
-                        io.to(socket.gameCode).emit('gameMessage', {
-                            message: `🏆 GAME COMPLETE! Winner: ${result.roundResult.finalResults.winner} with ${result.roundResult.finalResults.winnerScore} points! 🏆`
-                        });
-                    }, 1500);
-                } else {
-                    setTimeout(() => {
-                        game.players.forEach(playerName => {
-                            const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
-                            if (playerSocket) {
-                                const gameState = game.getGameState(playerName);
-                                playerSocket.emit('gameUpdate', gameState);
-                            }
-                        });
-                        
-                        io.to(socket.gameCode).emit('gameMessage', {
-                            message: `Starting Round ${game.currentRound}!`
-                        });
-                    }, 1000);
-                }
+                game.handleRoundEnd(result.roundResult);
             }
         } else {
             console.log('❌ Discard failed:', result.message);
@@ -805,49 +1232,11 @@ io.on('connection', (socket) => {
             if (result.roundEnded) {
                 console.log(`🎉 ${socket.playerName} went out by melding their last cards!`);
                 
-                io.to(socket.gameCode).emit('gameMessage', {
-                    message: `${socket.playerName} made a ${data.meldType} with ${result.meld.cards.length} cards`
-                });
-                
-                io.to(socket.gameCode).emit('gameMessage', {
-                    message: `🎉 ${socket.playerName} went out! Round ${game.currentRound - 1} ended.`
-                });
-                
-                if (result.roundResult.gameEnded && result.roundResult.finalResults && result.roundResult.finalResults.gameComplete) {
-                    setTimeout(() => {
-                        io.to(socket.gameCode).emit('gameComplete', result.roundResult.finalResults);
-                        
-                        io.to(socket.gameCode).emit('gameMessage', {
-                            message: `🏆 GAME COMPLETE! Winner: ${result.roundResult.finalResults.winner} with ${result.roundResult.finalResults.winnerScore} points! 🏆`
-                        });
-                    }, 1500);
-                } else {
-                    setTimeout(() => {
-                        game.players.forEach(playerName => {
-                            const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
-                            if (playerSocket) {
-                                const gameState = game.getGameState(playerName);
-                                playerSocket.emit('gameUpdate', gameState);
-                            }
-                        });
-                        
-                        io.to(socket.gameCode).emit('gameMessage', {
-                            message: `Starting Round ${game.currentRound}!`
-                        });
-                    }, 1000);
-                }
+                game.broadcastMessage(`${socket.playerName} made a ${data.meldType} with ${result.meld.cards.length} cards`);
+                game.handleRoundEnd(result.roundResult);
             } else {
-                game.players.forEach(playerName => {
-                    const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
-                    if (playerSocket) {
-                        const gameState = game.getGameState(playerName);
-                        playerSocket.emit('gameUpdate', gameState);
-                    }
-                });
-                
-                io.to(socket.gameCode).emit('gameMessage', {
-                    message: `${socket.playerName} made a ${data.meldType} with ${result.meld.cards.length} cards`
-                });
+                game.broadcastGameUpdate();
+                game.broadcastMessage(`${socket.playerName} made a ${data.meldType} with ${result.meld.cards.length} cards`);
             }
         } else {
             console.log('❌ Make meld failed:', result.message);
@@ -895,7 +1284,7 @@ io.on('connection', (socket) => {
         
         if (socket.playerName && socket.gameCode) {
             const game = games.get(socket.gameCode);
-            if (game) {
+            if (game && !game.aiPlayers.has(socket.playerName)) {
                 game.removePlayer(socket.playerName);
                 playerSockets.delete(socket.playerName);
                 
@@ -904,9 +1293,9 @@ io.on('connection', (socket) => {
                     playerName: socket.playerName
                 });
 
-                if (game.players.length === 0) {
+                if (game.players.filter(p => !game.aiPlayers.has(p)).length === 0) {
                     games.delete(socket.gameCode);
-                    console.log(`Game ${socket.gameCode} deleted - no players remaining`);
+                    console.log(`Game ${socket.gameCode} deleted - no human players remaining`);
                 }
             }
         }
