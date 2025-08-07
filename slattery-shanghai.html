@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Slattery Shanghai - Enhanced Edition</title>
-    <meta name="description" content="Enhanced Shanghai Rummy card game with AI players">
-    <link rel="preconnect" href="https://cdn.socket.io">
     <style>
         :root {
             --gold: #ffd700;
@@ -15,9 +13,6 @@
             --orange: #ff9800;
             --purple: #9c27b0;
             --ai-blue: #90caf9;
-            --bg-glass: rgba(255,255,255,0.15);
-            --border-radius: 8px;
-            --transition: all 0.3s ease;
         }
         
         * {
@@ -34,36 +29,20 @@
             padding: 20px;
         }
         
-        /* Optimized animations - use GPU acceleration */
-        .fade-in {
-            animation: fadeIn 0.5s ease-out;
-        }
-        
-        .slide-in {
-            animation: slideIn 0.5s ease-out;
-        }
-        
-        .pulse {
-            animation: pulse 1.5s infinite;
-        }
-        
-        .glow {
-            animation: glow 2s infinite;
-        }
-        
+        /* Animation keyframes */
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
         }
         
         @keyframes slideIn {
-            from { opacity: 0; transform: translate3d(0, -20px, 0); }
-            to { opacity: 1; transform: translate3d(0, 0, 0); }
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         
         @keyframes pulse {
-            0%, 100% { transform: scale3d(1, 1, 1); }
-            50% { transform: scale3d(1.05, 1.05, 1.05); }
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
         }
         
         @keyframes glow {
@@ -71,88 +50,160 @@
             50% { box-shadow: 0 0 20px currentColor; }
         }
         
-        /* Optimized button styles - consolidated classes */
-        .btn {
-            padding: 12px;
-            margin: 10px 0;
-            font-size: 16px;
+        /* Button styles */
+        .btn, .btn-primary, .btn-secondary, .btn-danger, .btn-layoff {
+            padding: 12px 20px;
+            margin: 8px 4px;
             border: none;
-            border-radius: var(--border-radius);
-            color: white;
-            cursor: pointer;
+            border-radius: 8px;
+            font-size: 14px;
             font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
             text-transform: uppercase;
-            transition: var(--transition);
-            position: relative;
-            overflow: hidden;
-            will-change: transform;
-            -webkit-tap-highlight-color: transparent;
+            letter-spacing: 0.5px;
         }
         
-        .btn:hover:not(:disabled) {
-            transform: translate3d(0, -2px, 0);
+        .btn-primary {
+            background: linear-gradient(45deg, var(--green), #45a049);
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(45deg, var(--orange), #f57c00);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(45deg, var(--red), #da190b);
+            color: white;
+        }
+        
+        .btn-layoff {
+            background: linear-gradient(45deg, var(--purple), #7b1fa2);
+            color: white;
+        }
+        
+        .btn:hover, .btn-primary:hover, .btn-secondary:hover, .btn-danger:hover, .btn-layoff:hover {
+            transform: translateY(-2px);
             box-shadow: 0 8px 15px rgba(0,0,0,0.3);
-        }
-        
-        .btn:active {
-            transform: translate3d(0, 0, 0);
         }
         
         .btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
-            pointer-events: none;
+            transform: none;
         }
         
-        .btn-primary { background: linear-gradient(45deg, var(--green), #45a049); }
-        .btn-secondary { background: linear-gradient(45deg, var(--orange), #f57c00); }
-        .btn-danger { background: linear-gradient(45deg, var(--red), #da190b); }
-        .btn-layoff { background: linear-gradient(45deg, var(--purple), #7b1fa2); }
-        
-        /* Optimized card styles with better performance */
+        /* Card styles */
         .card {
             width: 60px;
             height: 84px;
             background: white;
-            border-radius: var(--border-radius);
+            border-radius: 8px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             padding: 5px;
+            margin: 2px;
             cursor: pointer;
             border: 2px solid transparent;
             font-size: 12px;
             font-weight: bold;
-            transition: var(--transition);
+            transition: all 0.3s ease;
             user-select: none;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            will-change: transform;
-            backface-visibility: hidden;
         }
         
         .card:hover {
-            transform: translate3d(0, -3px, 0) scale3d(1.05, 1.05, 1.05);
+            transform: translateY(-3px) scale(1.05);
             box-shadow: 0 8px 15px rgba(0,0,0,0.4);
             z-index: 10;
         }
         
         .card.selected {
             border-color: var(--gold);
-        }
-        
-        .card.selected {
             animation: pulse 1.5s infinite;
         }
         
-        .card.wanted {
-            border-color: var(--gold);
-            animation: glow 2s infinite;
+        .card.red {
+            color: #d32f2f;
         }
         
-        .card.red { color: #d32f2f; }
-        .card.black { color: #1976d2; }
+        .card.black {
+            color: #1976d2;
+        }
         
-        /* Optimized layout and dialog styles */
+        /* Layout styles */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            animation: slideIn 1s;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            color: var(--gold);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            margin-bottom: 10px;
+        }
+        
+        .section {
+            background: rgba(255,255,255,0.15);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        
+        .game-board {
+            display: none;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+            animation: fadeIn 1s;
+        }
+        
+        /* Pile styles */
+        .pile {
+            width: 80px;
+            height: 112px;
+            background: rgba(255,255,255,0.1);
+            border: 3px dashed rgba(255,255,255,0.4);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 0 auto;
+        }
+        
+        .pile:hover {
+            background: rgba(255,255,255,0.2);
+            border-color: var(--gold);
+            transform: scale(1.1);
+        }
+        
+        /* Card container styles */
+        .cards-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 10px;
+            min-height: 90px;
+            padding: 10px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 8px;
+            border: 1px dashed rgba(255,255,255,0.3);
+        }
+        
+        /* Dialog styles */
         .dialog {
             position: fixed;
             top: 50%;
@@ -166,81 +217,12 @@
             text-align: center;
             z-index: 1000;
             box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+            animation: slideIn 0.5s;
             min-width: 300px;
         }
         
-        .section {
-            background: var(--bg-glass);
-            padding: 20px;
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-            margin-bottom: 20px;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        
-        .header h1 {
-            font-size: 2.5rem;
-            color: var(--gold);
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-        }
-        
-        .game-board {
-            display: none;
-            grid-template-columns: 1fr 300px;
-            gap: 20px;
-        }
-        
-        /* Optimized interactive elements */
-        .pile {
-            width: 80px;
-            height: 112px;
-            background: rgba(255,255,255,0.1);
-            border: 3px dashed rgba(255,255,255,0.4);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: var(--transition);
-            will-change: transform;
-        }
-        
-        .pile:hover {
-            background: rgba(255,255,255,0.2);
-            border-color: var(--gold);
-            transform: scale3d(1.1, 1.1, 1.1);
-        }
-        
-        .cards-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
-            margin-top: 10px;
-            min-height: 90px;
-        }
-        
-        .meld-display {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin: 8px 0;
-            padding: 10px;
-            background: rgba(255,255,255,0.1);
-            border-radius: var(--border-radius);
-            border: 1px solid rgba(255,255,255,0.2);
-            transition: var(--transition);
-        }
-        
-        .player-section {
+        /* Player styles */
+        .player-item {
             margin-bottom: 15px;
             padding: 12px;
             background: rgba(255,255,255,0.08);
@@ -248,33 +230,41 @@
             border-left: 3px solid var(--green);
         }
         
-        .player-section.current {
+        .player-item.current {
             border-left-color: var(--gold);
             background: rgba(255,215,0,0.1);
         }
         
-        .player-section.ai {
+        .player-item.ai {
             border-left-color: var(--ai-blue);
             background: rgba(144,202,249,0.1);
         }
         
-        .notification {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            padding: 20px 30px;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: bold;
-            z-index: 1000;
-            animation: slideIn 0.5s;
+        /* Messages */
+        .messages {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 8px;
+            height: 200px;
+            overflow-y: auto;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
         }
         
-        .notification.success { background: var(--green); }
-        .notification.error { background: var(--red); }
-        .notification.info { background: var(--blue); }
+        /* Input styles */
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            background: rgba(255,255,255,0.95);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
         
+        /* Sound control */
         .sound-control {
             position: fixed;
             top: 20px;
@@ -294,33 +284,55 @@
             transform: scale(1.1);
         }
         
-        .messages {
-            background: rgba(0,0,0,0.3);
-            padding: 15px;
-            border-radius: 8px;
-            height: 200px;
-            overflow-y: auto;
-            margin: 15px 0;
-        }
-        
-        input {
-            width: 100%;
-            padding: 12px;
-            margin: 10px 0;
-            border: none;
-            border-radius: 8px;
+        /* Notification styles */
+        .notification {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px 30px;
+            border-radius: 10px;
             font-size: 16px;
-            background: rgba(255,255,255,0.95);
+            font-weight: bold;
+            z-index: 1000;
+            animation: slideIn 0.5s;
         }
         
+        .notification.success {
+            background: var(--green);
+            color: white;
+        }
+        
+        .notification.error {
+            background: var(--red);
+            color: white;
+        }
+        
+        .notification.info {
+            background: var(--blue);
+            color: white;
+        }
+        
+        /* Responsive design */
         @media (max-width: 768px) {
-            .game-board { grid-template-columns: 1fr; }
-            .card { width: 50px; height: 70px; font-size: 10px; }
+            .game-board {
+                grid-template-columns: 1fr;
+            }
+            
+            .card {
+                width: 50px;
+                height: 70px;
+                font-size: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="sound-control" onclick="game.toggleSound()">
+    <div class="sound-control" onclick="toggleSound()">
         <span id="soundIcon">🔊</span>
     </div>
     
@@ -330,6 +342,7 @@
             <p>Enhanced Family Card Game - 7 Rounds Edition</p>
         </div>
         
+        <!-- Game Setup Section -->
         <div id="gameSetup" class="section">
             <h2>Join Game</h2>
             <div id="connectionStatus">Status: Not connected</div>
@@ -340,619 +353,591 @@
                 <label>Number of AI players:</label>
                 <input type="number" id="aiCount" min="0" max="6" value="3" style="width: 80px;">
             </div>
-            <button class="btn btn-primary" onclick="game.connect()">Connect to Server</button>
-            <button class="btn btn-primary" id="joinBtn" onclick="game.joinGame()" disabled>Join Game</button>
+            <button class="btn-primary" onclick="connectToServer()">Connect to Server</button>
+            <button class="btn-primary" id="joinBtn" onclick="joinGame()" disabled>Join Game</button>
             <div id="waitingArea" style="display: none;">
                 <h3>Waiting for Players...</h3>
                 <div>Game Code: <span id="displayCode">-</span></div>
                 <div>Players: <span id="playerCount">0</span></div>
                 <div id="currentPlayers"></div>
-                <button class="btn btn-primary" id="startBtn" onclick="game.startGame()" style="display: none;">Start Game</button>
+                <button class="btn-primary" id="startBtn" onclick="startGame()" style="display: none;">Start Game</button>
             </div>
         </div>
         
+        <!-- Game Board -->
         <div id="gameBoard" class="game-board">
             <div class="section">
+                <!-- Round Info -->
                 <div class="section">
                     <h3>Round <span id="currentRound">1</span> of 7</h3>
                     <div>Required: <span id="requiredMelds">-</span></div>
+                    <div>Buys Remaining: <span id="buysRemaining">3</span></div>
                 </div>
                 
+                <!-- Card Piles -->
                 <div style="display: flex; justify-content: center; gap: 20px; margin: 20px 0;">
-                    <div class="pile" onclick="game.drawCard()">
+                    <div class="pile" onclick="drawCard()">
                         <div>🂠<br><small>Draw</small></div>
                     </div>
-                    <div class="pile" onclick="game.pickUpDiscard()">
+                    <div class="pile" onclick="pickUpDiscard()">
                         <div id="discardDisplay">No Card<br><small>Pick Up</small></div>
                     </div>
                 </div>
                 
-                <div class="section">
-                    <h4>Players' Melds</h4>
-                    <div id="allPlayerMelds">No melds yet</div>
-                </div>
-                
+                <!-- Player Hand -->
                 <div class="section">
                     <h4>Your Hand (<span id="handCount">0</span> cards)</h4>
                     <div id="playerHand" class="cards-container"></div>
                 </div>
                 
+                <!-- Player Melds -->
                 <div class="section">
                     <h4>Your Melds</h4>
                     <div id="playerMelds">No melds yet</div>
                 </div>
                 
-                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <button class="btn btn-primary" onclick="game.makeSet()" id="setBtn">Make Set</button>
-                    <button class="btn btn-primary" onclick="game.makeRun()" id="runBtn">Make Run</button>
-                    <button class="btn btn-layoff" onclick="game.toggleLayoff()" id="layoffBtn">Lay Off</button>
-                    <button class="btn btn-danger" onclick="game.discardCard()" id="discardBtn">Discard</button>
+                <!-- All Player Melds -->
+                <div class="section">
+                    <h4>All Players' Melds</h4>
+                    <div id="allPlayerMelds">No melds yet</div>
                 </div>
                 
-                <!-- Buy request dialog -->
-                <div id="buyDialog" class="dialog" style="display: none;">
-                    <h3>Buy Card?</h3>
-                    <p>Do you want to buy: <span id="buyCardDisplay"></span></p>
-                    <p>You will draw this card plus one from deck</p>
-                    <p>Buys remaining: <span id="buyCount"></span></p>
-                    <div style="margin-top: 15px;">
-                        <button class="btn btn-primary" onclick="game.submitBuy(true)">Yes, Buy</button>
-                        <button class="btn btn-secondary" onclick="game.submitBuy(false)">No</button>
-                    </div>
+                <!-- Action Buttons -->
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 20px;">
+                    <button class="btn-primary" onclick="makeSet()" id="setBtn">Make Set</button>
+                    <button class="btn-primary" onclick="makeRun()" id="runBtn">Make Run</button>
+                    <button class="btn-layoff" onclick="toggleLayoff()" id="layoffBtn">Lay Off</button>
+                    <button class="btn-danger" onclick="discardCard()" id="discardBtn">Discard</button>
                 </div>
                 
+                <!-- Sort Buttons -->
                 <div style="margin-top: 10px;">
-                    <button class="btn btn-secondary" onclick="game.sortBySuit()">Sort by Suit</button>
-                    <button class="btn btn-secondary" onclick="game.sortByRank()">Sort by Rank</button>
+                    <button class="btn-secondary" onclick="sortBySuit()">Sort by Suit</button>
+                    <button class="btn-secondary" onclick="sortByRank()">Sort by Rank</button>
                 </div>
             </div>
             
+            <!-- Right Panel -->
             <div class="section">
+                <!-- Players List -->
                 <div id="playersList"></div>
+                
+                <!-- Messages -->
                 <div class="messages" id="messages"></div>
+                
+                <!-- Scores -->
                 <div id="scoresTable"></div>
             </div>
         </div>
     </div>
     
+    <!-- Buy Request Dialog -->
+    <div id="buyDialog" class="dialog" style="display: none;">
+        <h3>Buy Card?</h3>
+        <p>Do you want to buy: <span id="buyCardDisplay"></span></p>
+        <p>You will draw this card plus one from deck</p>
+        <p>Buys remaining: <span id="buyCount"></span></p>
+        <div style="margin-top: 15px;">
+            <button class="btn-primary" onclick="submitBuy(true)">Yes, Buy</button>
+            <button class="btn-secondary" onclick="submitBuy(false)">No</button>
+        </div>
+    </div>
+    
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
-        // High-performance game controller with optimizations
-        const game = {
-            // Centralized state management
-            state: {
-                socket: null,
-                myName: '',
-                gameCode: '',
-                players: [],
-                currentPlayer: '',
-                round: 1,
-                hand: [],
-                melds: [],
-                selectedCards: new Set(), // Use Set for better performance
-                isMyTurn: false,
-                hasDrawn: false,
-                hasGoneDown: false,
-                layoffMode: false,
-                soundEnabled: true,
-                cardOrder: [],
-                lastUpdate: 0 // Throttle updates
-            },
-            
-            // Audio context with lazy initialization
-            audioCtx: null,
-            soundCache: new Map(), // Cache sound objects
-            
-            // Throttle function for performance
-            throttle(func, delay) {
-                let timeoutId;
-                let lastExecTime = 0;
-                
-                return function (...args) {
-                    const currentTime = Date.now();
-                    
-                    if (currentTime - lastExecTime > delay) {
-                        func.apply(this, args);
-                        lastExecTime = currentTime;
-                    } else {
-                        clearTimeout(timeoutId);
-                        timeoutId = setTimeout(() => {
-                            func.apply(this, args);
-                            lastExecTime = Date.now();
-                        }, delay - (currentTime - lastExecTime));
-                    }
-                };
-            },
-            
-            // Optimized audio initialization
-            initAudio() {
-                if (!this.audioCtx) {
-                    this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                }
-                
-                // Resume context if suspended (for mobile browsers)
-                if (this.audioCtx.state === 'suspended') {
-                    this.audioCtx.resume();
-                }
-            },
-            
-            // Optimized sound generation with caching
-            playSound(type) {
-                if (!this.state.soundEnabled) return;
-                
-                this.initAudio();
-                
-                // Check cache first
-                if (this.soundCache.has(type)) {
-                    const cachedSound = this.soundCache.get(type);
-                    cachedSound.currentTime = 0;
-                    cachedSound.play().catch(() => {}); // Ignore play errors
-                    return;
-                }
-                
-                const oscillator = this.audioCtx.createOscillator();
-                const gainNode = this.audioCtx.createGain();
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(this.audioCtx.destination);
-                
-                const sounds = {
-                    click: { freq: 800, dur: 0.1 },
-                    success: { freq: 1000, dur: 0.2 },
-                    error: { freq: 200, dur: 0.3 }
-                };
-                
-                const sound = sounds[type] || sounds.click;
-                oscillator.frequency.value = sound.freq;
-                gainNode.gain.setValueAtTime(0.1, this.audioCtx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioCtx.currentTime + sound.dur);
-                
-                oscillator.start();
-                oscillator.stop(this.audioCtx.currentTime + sound.dur);
-            },
-            
-            // Toggle sound
-            toggleSound() {
-                this.state.soundEnabled = !this.state.soundEnabled;
-                document.getElementById('soundIcon').textContent = this.state.soundEnabled ? '🔊' : '🔇';
-                if (this.state.soundEnabled) this.playSound('click');
-            },
-            
-            // Show notification
-            notify(message, type = 'info') {
-                const notif = document.createElement('div');
-                notif.className = `notification ${type}`;
-                notif.textContent = message;
-                document.body.appendChild(notif);
-                
-                this.playSound(type === 'error' ? 'error' : 'success');
-                
-                setTimeout(() => {
-                    notif.style.opacity = '0';
-                    setTimeout(() => notif.remove(), 300);
-                }, 2500);
-            },
-            
-            // Add message to chat
-            addMessage(text) {
-                const messages = document.getElementById('messages');
-                if (!messages) return;
-                
-                const msg = document.createElement('div');
-                msg.textContent = `${new Date().toLocaleTimeString()}: ${text}`;
-                messages.appendChild(msg);
-                messages.scrollTop = messages.scrollHeight;
-                
-                // Keep only last 50 messages
-                while (messages.children.length > 50) {
-                    messages.firstChild.remove();
-                }
-            },
-            
-            // Connect to server
-            connect() {
-                this.addMessage("Connecting to server...");
-                
-                if (this.state.socket) {
-                    this.state.socket.disconnect();
-                }
-                
-                this.state.socket = io({
-                    transports: ['websocket', 'polling'],
-                    timeout: 5000
-                });
-                
-                this.setupSocketHandlers();
-            },
-            
-            // Setup socket event handlers
-            setupSocketHandlers() {
-                const socket = this.state.socket;
-                
-                socket.on('connect', () => {
-                    this.addMessage("✅ Connected!");
-                    document.getElementById('connectionStatus').textContent = "Status: Connected";
-                    document.getElementById('joinBtn').disabled = false;
-                    this.notify("Connected to server!", "success");
-                });
-                
-                socket.on('disconnect', () => {
-                    this.addMessage("❌ Disconnected");
-                    document.getElementById('connectionStatus').textContent = "Status: Disconnected";
-                    document.getElementById('joinBtn').disabled = true;
-                    this.notify("Disconnected", "error");
-                });
-                
-                socket.on('playerJoined', (data) => {
-                    this.handlePlayerJoined(data);
-                });
-                
-                socket.on('gameStarted', (data) => {
-                    this.handleGameStarted(data);
-                });
-                
-                socket.on('gameUpdate', (data) => {
-                    this.updateGameState(data);
-                });
-                
-                socket.on('gameMessage', (data) => {
-                    this.addMessage(data.message);
-                    if (data.message.includes('won')) this.playSound('success');
-                });
-                
-                socket.on('buyRequest', (data) => {
-                    this.handleBuyRequest(data);
-                });
-                
-                socket.on('error', (data) => {
-                    this.notify(data.message, "error");
-                });
-            },
-            
-            // Handle player joined
-            handlePlayerJoined(data) {
-                this.state.gameCode = data.gameCode;
-                this.state.players = data.players;
-                
-                document.getElementById('displayCode').textContent = data.gameCode;
-                document.getElementById('playerCount').textContent = data.players.length;
-                document.getElementById('waitingArea').style.display = 'block';
-                
-                const playersDiv = document.getElementById('currentPlayers');
-                playersDiv.innerHTML = '<h4>Players:</h4>';
-                data.players.forEach(player => {
-                    const div = document.createElement('div');
-                    div.textContent = player + (data.aiPlayers?.includes(player) ? ' 🤖' : '');
-                    playersDiv.appendChild(div);
-                });
-                
-                if (data.isHost) {
-                    document.getElementById('startBtn').style.display = 'block';
-                }
-            },
-            
-            // Handle game started
-            handleGameStarted(data) {
-                this.addMessage("🎮 Game started!");
-                this.notify("Game Started!", "success");
-                this.updateGameState(data);
-                document.getElementById('gameSetup').style.display = 'none';
-                document.getElementById('gameBoard').style.display = 'grid';
-            },
-            
-            // Update game state
-            updateGameState(data) {
-                Object.assign(this.state, data);
-                if (data.hand) {
-                    this.state.cardOrder = data.hand.map((_, i) => i);
-                }
-                this.throttledUpdateUI();
-            },
-            
-            // Handle buy request
-            handleBuyRequest(data) {
-                if (!data.card || this.state.buysRemaining <= 0) return;
-                
-                const dialog = document.getElementById('buyDialog');
-                const cardDisplay = document.getElementById('buyCardDisplay');
-                const buyCount = document.getElementById('buyCount');
-                
-                if (cardDisplay && buyCount && dialog) {
-                    const color = data.card.color === 'red' ? '#d32f2f' : '#1976d2';
-                    cardDisplay.innerHTML = `<span style="color: ${color}; font-weight: bold;">${data.card.display}</span>`;
-                    buyCount.textContent = this.state.buysRemaining;
-                    dialog.style.display = 'block';
-                    
-                    // Auto-close after time limit
-                    setTimeout(() => {
-                        if (dialog.style.display !== 'none') {
-                            this.submitBuy(false);
-                        }
-                    }, data.timeLimit || 3000);
-                }
-            },
-            
-            // Submit buy decision
-            submitBuy(wantCard) {
-                const dialog = document.getElementById('buyDialog');
-                if (dialog) dialog.style.display = 'none';
-                
-                this.state.socket.emit('submitBuyRequest', { wantsCard: wantCard });
-                this.playSound('click');
-            },
-            
-            // Throttled UI update for better performance
-            throttledUpdateUI: null, // Will be set in constructor
-            
-            // Optimized UI update with minimal DOM manipulation
-            updateUI() {
-                const now = Date.now();
-                if (now - this.state.lastUpdate < 16) return; // 60fps limit
-                this.state.lastUpdate = now;
-                
-                requestAnimationFrame(() => {
-                    this.updateHand();
-                    this.updatePlayers();
-                    this.updateMelds();
-                    this.updateButtons();
-                    this.updateGameInfo();
-                });
-            },
-            
-            // Separate game info update to reduce DOM queries
-            updateGameInfo() {
-                const roundEl = document.getElementById('currentRound');
-                const handCountEl = document.getElementById('handCount');
-                const discardEl = document.getElementById('discardDisplay');
-                const reqMeldsEl = document.getElementById('requiredMelds');
-                
-                if (roundEl) roundEl.textContent = this.state.currentRound || 1;
-                if (handCountEl) handCountEl.textContent = this.state.hand?.length || 0;
-                
-                // Show round requirements
-                if (reqMeldsEl && this.state.roundRequirements) {
-                    reqMeldsEl.textContent = this.state.roundRequirements.melds;
-                }
-                
-                if (discardEl) {
-                    if (this.state.discardTop) {
-                        const color = this.state.discardTop.color === 'red' ? '#d32f2f' : '#1976d2';
-                        discardEl.innerHTML = 
-                            `<span style="color: ${color}; font-weight: bold;">${this.state.discardTop.display}</span><br><small>Pick Up</small>`;
-                    } else {
-                        discardEl.innerHTML = 'No Card<br><small>Pick Up</small>';
-                    }
-                }
-            },
-            
-            // Optimized hand display with virtual scrolling for large hands
-            updateHand() {
-                const container = document.getElementById('playerHand');
-                if (!container) return;
-                
-                // Use DocumentFragment for better performance
-                const fragment = document.createDocumentFragment();
-                
-                this.state.cardOrder.forEach(idx => {
-                    if (idx >= this.state.hand.length) return;
-                    
-                    const card = this.state.hand[idx];
-                    const cardEl = document.createElement('div');
-                    cardEl.className = `card ${card.color}`;
-                    
-                    // Use Set for faster lookup
-                    if (this.state.selectedCards.has(idx)) {
-                        cardEl.classList.add('selected');
-                    }
-                    
-                    cardEl.innerHTML = `<div>${card.display}</div><div style="transform: rotate(180deg)">${card.display}</div>`;
-                    
-                    // Use arrow function to maintain context
-                    cardEl.onclick = () => this.toggleCard(idx);
-                    
-                    fragment.appendChild(cardEl);
-                });
-                
-                // Single DOM update
-                container.innerHTML = '';
-                container.appendChild(fragment);
-            },
-            
-            // Optimized players display with minimal DOM updates
-            updatePlayers() {
-                const container = document.getElementById('playersList');
-                if (!container) return;
-                
-                const fragment = document.createDocumentFragment();
-                const header = document.createElement('h4');
-                header.textContent = 'Players';
-                fragment.appendChild(header);
-                
-                this.state.players?.forEach(player => {
-                    const div = document.createElement('div');
-                    div.className = 'player-section';
-                    if (player === this.state.currentPlayer) div.classList.add('current');
-                    div.textContent = player + (player === this.state.currentPlayer ? ' 👑' : '');
-                    fragment.appendChild(div);
-                });
-                
-                container.innerHTML = '';
-                container.appendChild(fragment);
-            },
-            
-            // Update melds display
-            updateMelds() {
-                const container = document.getElementById('playerMelds');
-                if (!container || !this.state.melds) return;
-                
-                if (this.state.melds.length === 0) {
-                    container.innerHTML = 'No melds yet';
-                    return;
-                }
-                
-                container.innerHTML = '';
-                this.state.melds.forEach(meld => {
-                    const div = document.createElement('div');
-                    div.className = 'meld-display';
-                    div.innerHTML = `<strong>${meld.type}:</strong> ${meld.cards.map(c => 
-                        `<span style="color: ${c.color === 'red' ? '#d32f2f' : '#1976d2'}">${c.display}</span>`
-                    ).join(' ')}`;
-                    container.appendChild(div);
-                });
-            },
-            
-            // Optimized button state management
-            updateButtons() {
-                const canAct = this.state.isMyTurn && !this.state.layoffMode;
-                const selectedCount = this.state.selectedCards.size;
-                
-                // Basic action buttons
-                document.getElementById('setBtn').disabled = !canAct || selectedCount < 3;
-                document.getElementById('runBtn').disabled = !canAct || selectedCount < 4;
-                document.getElementById('discardBtn').disabled = !canAct || !this.state.hasDrawn || selectedCount !== 1;
-                
-                // Lay-off button should only be enabled if player has gone down
-                const layoffBtn = document.getElementById('layoffBtn');
-                if (layoffBtn) {
-                    layoffBtn.disabled = !this.state.hasGoneDown || !this.state.isMyTurn;
-                    layoffBtn.textContent = this.state.layoffMode ? 'Cancel Layoff' : 'Lay Off';
-                }
-            },
-            
-            // Game actions
-            joinGame() {
-                const name = document.getElementById('playerName').value.trim();
-                const code = document.getElementById('gameCode').value.trim();
-                const aiCount = parseInt(document.getElementById('aiCount').value) || 0;
-                
-                if (!name) {
-                    this.notify("Please enter your name", "error");
-                    return;
-                }
-                
-                this.state.myName = name;
-                this.state.socket.emit('joinGame', { playerName: name, gameCode: code, aiCount });
-            },
-            
-            startGame() {
-                this.state.socket.emit('startGame');
-            },
-            
-            // Optimized card selection using Set for O(1) operations
-            toggleCard(index) {
-                if (this.state.selectedCards.has(index)) {
-                    this.state.selectedCards.delete(index);
-                } else {
-                    this.state.selectedCards.add(index);
-                }
-                this.playSound('click');
-                this.throttledUpdateUI();
-            },
-            
-            drawCard() {
-                if (!this.state.isMyTurn || this.state.hasDrawn) return;
-                this.state.socket.emit('drawCard');
-                this.playSound('click');
-            },
-            
-            pickUpDiscard() {
-                if (!this.state.isMyTurn || this.state.hasDrawn) return;
-                this.state.socket.emit('pickUpDiscard');
-                this.playSound('click');
-            },
-            
-            makeSet() {
-                if (this.state.selectedCards.size < 3) return;
-                this.state.socket.emit('makeMeld', { 
-                    cardIndices: Array.from(this.state.selectedCards), 
-                    meldType: 'set' 
-                });
-                this.state.selectedCards.clear();
-            },
-            
-            makeRun() {
-                if (this.state.selectedCards.size < 4) return;
-                this.state.socket.emit('makeMeld', { 
-                    cardIndices: Array.from(this.state.selectedCards), 
-                    meldType: 'run' 
-                });
-                this.state.selectedCards.clear();
-            },
-            
-            discardCard() {
-                if (this.state.selectedCards.size !== 1) return;
-                this.state.socket.emit('discardCard', { 
-                    cardIndex: Array.from(this.state.selectedCards)[0] 
-                });
-                this.state.selectedCards.clear();
-            },
-            
-            toggleLayoff() {
-                this.state.layoffMode = !this.state.layoffMode;
-                document.getElementById('layoffBtn').textContent = 
-                    this.state.layoffMode ? 'Cancel Layoff' : 'Lay Off';
-                this.updateUI();
-            },
-            
-            sortBySuit() {
-                const suitOrder = { 'hearts': 0, 'diamonds': 1, 'clubs': 2, 'spades': 3 };
-                const rankOrder = { 'A': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13 };
-                
-                this.state.cardOrder.sort((a, b) => {
-                    const cardA = this.state.hand[a];
-                    const cardB = this.state.hand[b];
-                    const suitDiff = suitOrder[cardA.suit] - suitOrder[cardB.suit];
-                    return suitDiff || rankOrder[cardA.rank] - rankOrder[cardB.rank];
-                });
-                
-                this.updateHand();
-                this.playSound('click');
-            },
-            
-            sortByRank() {
-                const rankOrder = { 'A': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13 };
-                const suitOrder = { 'hearts': 0, 'diamonds': 1, 'clubs': 2, 'spades': 3 };
-                
-                this.state.cardOrder.sort((a, b) => {
-                    const cardA = this.state.hand[a];
-                    const cardB = this.state.hand[b];
-                    const rankDiff = rankOrder[cardA.rank] - rankOrder[cardB.rank];
-                    return rankDiff || suitOrder[cardA.suit] - suitOrder[cardB.suit];
-                });
-                
-                this.updateHand();
-                this.playSound('click');
-            }
+        // Game state
+        let socket = null;
+        let gameState = {
+            myName: '',
+            gameCode: '',
+            players: [],
+            currentPlayer: '',
+            round: 1,
+            hand: [],
+            melds: [],
+            selectedCards: [],
+            isMyTurn: false,
+            hasDrawn: false,
+            hasGoneDown: false,
+            layoffMode: false,
+            soundEnabled: true,
+            aiPlayers: []
         };
         
-        // Initialize optimizations and event handlers
-        window.addEventListener('load', () => {
-            // Initialize throttled functions
-            game.throttledUpdateUI = game.throttle(game.updateUI.bind(game), 16); // 60fps
-            
-            // Preload audio context on first user interaction
-            document.addEventListener('click', () => {
-                game.initAudio();
-            }, { once: true });
-            
-            // Add performance monitoring
-            if (window.performance && performance.mark) {
-                performance.mark('game-start');
-            }
-            
-            game.addMessage('Welcome to Slattery Shanghai!');
-            game.addMessage('Click "Connect to Server" to begin');
-        });
+        // Audio context
+        let audioCtx = null;
         
-        // Add visibility API for performance when tab is hidden
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                // Pause expensive operations when tab is hidden
-                game.state.soundEnabled = false;
-            } else {
-                // Resume when tab is visible
-                game.state.soundEnabled = true;
+        // Initialize audio
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
+        }
+        
+        // Play sound
+        function playSound(type) {
+            if (!gameState.soundEnabled) return;
+            
+            initAudio();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            const sounds = {
+                click: { freq: 800, dur: 0.1 },
+                success: { freq: 1000, dur: 0.2 },
+                error: { freq: 200, dur: 0.3 }
+            };
+            
+            const sound = sounds[type] || sounds.click;
+            oscillator.frequency.value = sound.freq;
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + sound.dur);
+            
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + sound.dur);
+        }
+        
+        // Toggle sound
+        function toggleSound() {
+            gameState.soundEnabled = !gameState.soundEnabled;
+            document.getElementById('soundIcon').textContent = gameState.soundEnabled ? '🔊' : '🔇';
+            if (gameState.soundEnabled) playSound('click');
+        }
+        
+        // Show notification
+        function showNotification(message, type = 'info') {
+            const notif = document.createElement('div');
+            notif.className = `notification ${type}`;
+            notif.textContent = message;
+            document.body.appendChild(notif);
+            
+            playSound(type === 'error' ? 'error' : 'success');
+            
+            setTimeout(() => {
+                notif.style.opacity = '0';
+                setTimeout(() => notif.remove(), 300);
+            }, 2500);
+        }
+        
+        // Add message to chat
+        function addMessage(text) {
+            const messages = document.getElementById('messages');
+            if (!messages) return;
+            
+            const msg = document.createElement('div');
+            msg.textContent = `${new Date().toLocaleTimeString()}: ${text}`;
+            messages.appendChild(msg);
+            messages.scrollTop = messages.scrollHeight;
+            
+            // Keep only last 50 messages
+            while (messages.children.length > 50) {
+                messages.firstChild.remove();
+            }
+        }
+        
+        // Connect to server
+        function connectToServer() {
+            addMessage("Connecting to server...");
+            
+            if (socket) {
+                socket.disconnect();
+            }
+            
+            socket = io({
+                transports: ['websocket', 'polling'],
+                timeout: 5000
+            });
+            
+            setupSocketHandlers();
+        }
+        
+        // Setup socket event handlers
+        function setupSocketHandlers() {
+            socket.on('connect', () => {
+                addMessage("✅ Connected!");
+                document.getElementById('connectionStatus').textContent = "Status: Connected";
+                document.getElementById('joinBtn').disabled = false;
+                showNotification("Connected to server!", "success");
+            });
+            
+            socket.on('disconnect', () => {
+                addMessage("❌ Disconnected");
+                document.getElementById('connectionStatus').textContent = "Status: Disconnected";
+                document.getElementById('joinBtn').disabled = true;
+                showNotification("Disconnected", "error");
+            });
+            
+            socket.on('playerJoined', (data) => {
+                handlePlayerJoined(data);
+            });
+            
+            socket.on('gameStarted', (data) => {
+                handleGameStarted(data);
+            });
+            
+            socket.on('gameUpdate', (data) => {
+                updateGameState(data);
+            });
+            
+            socket.on('gameMessage', (data) => {
+                addMessage(data.message);
+                if (data.message.includes('won')) playSound('success');
+            });
+            
+            socket.on('buyRequest', (data) => {
+                handleBuyRequest(data);
+            });
+            
+            socket.on('error', (data) => {
+                showNotification(data.message, "error");
+            });
+        }
+        
+        // Handle player joined
+        function handlePlayerJoined(data) {
+            gameState.gameCode = data.gameCode;
+            gameState.players = data.players;
+            gameState.aiPlayers = data.aiPlayers || [];
+            
+            document.getElementById('displayCode').textContent = data.gameCode;
+            document.getElementById('playerCount').textContent = data.players.length;
+            document.getElementById('waitingArea').style.display = 'block';
+            
+            const playersDiv = document.getElementById('currentPlayers');
+            playersDiv.innerHTML = '<h4>Players:</h4>';
+            data.players.forEach(player => {
+                const div = document.createElement('div');
+                div.textContent = player + (data.aiPlayers?.includes(player) ? ' 🤖' : '');
+                playersDiv.appendChild(div);
+            });
+            
+            if (data.isHost) {
+                document.getElementById('startBtn').style.display = 'block';
+            }
+        }
+        
+        // Handle game started
+        function handleGameStarted(data) {
+            addMessage("🎮 Game started!");
+            showNotification("Game Started!", "success");
+            updateGameState(data);
+            document.getElementById('gameSetup').style.display = 'none';
+            document.getElementById('gameBoard').style.display = 'grid';
+        }
+        
+        // Update game state
+        function updateGameState(data) {
+            Object.assign(gameState, data);
+            updateUI();
+        }
+        
+        // Handle buy request
+        function handleBuyRequest(data) {
+            if (!data.card || gameState.buysRemaining <= 0) return;
+            
+            const dialog = document.getElementById('buyDialog');
+            const cardDisplay = document.getElementById('buyCardDisplay');
+            const buyCount = document.getElementById('buyCount');
+            
+            if (cardDisplay && buyCount && dialog) {
+                const color = data.card.color === 'red' ? '#d32f2f' : '#1976d2';
+                cardDisplay.innerHTML = `<span style="color: ${color}; font-weight: bold;">${data.card.display}</span>`;
+                buyCount.textContent = gameState.buysRemaining;
+                dialog.style.display = 'block';
+                
+                // Auto-close after time limit
+                setTimeout(() => {
+                    if (dialog.style.display !== 'none') {
+                        submitBuy(false);
+                    }
+                }, data.timeLimit || 3000);
+            }
+        }
+        
+        // Submit buy decision
+        function submitBuy(wantCard) {
+            const dialog = document.getElementById('buyDialog');
+            if (dialog) dialog.style.display = 'none';
+            
+            socket.emit('submitBuyRequest', { wantsCard: wantCard });
+            playSound('click');
+        }
+        
+        // Update UI
+        function updateUI() {
+            updateHand();
+            updatePlayers();
+            updateMelds();
+            updateButtons();
+            updateGameInfo();
+        }
+        
+        // Update game info
+        function updateGameInfo() {
+            document.getElementById('currentRound').textContent = gameState.currentRound || 1;
+            document.getElementById('handCount').textContent = gameState.hand?.length || 0;
+            document.getElementById('buysRemaining').textContent = gameState.buysRemaining || 3;
+            
+            if (gameState.roundRequirements) {
+                document.getElementById('requiredMelds').textContent = gameState.roundRequirements.melds;
+            }
+            
+            updateDiscardPile();
+        }
+        
+        // Update discard pile
+        function updateDiscardPile() {
+            const discardDiv = document.getElementById('discardDisplay');
+            if (!discardDiv) return;
+            
+            if (gameState.discardTop) {
+                const color = gameState.discardTop.color === 'red' ? '#d32f2f' : '#1976d2';
+                discardDiv.innerHTML = `
+                    <div style="background: white; color: ${color}; padding: 6px; border-radius: 6px; font-weight: bold; border: 2px solid #333; min-height: 35px; display: flex; align-items: center; justify-content: center;">
+                        ${gameState.discardTop.display}
+                    </div>
+                    <small style="margin-top: 4px; display: block;">Pick Up</small>
+                `;
+            } else {
+                discardDiv.innerHTML = '<div style="color: white;">No Card</div><small>Pick Up</small>';
+            }
+        }
+        
+        // Update hand display
+        function updateHand() {
+            const container = document.getElementById('playerHand');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            gameState.hand.forEach((card, index) => {
+                const cardEl = document.createElement('div');
+                cardEl.className = `card ${card.color}`;
+                if (gameState.selectedCards.includes(index)) {
+                    cardEl.classList.add('selected');
+                }
+                
+                cardEl.innerHTML = `<div>${card.display}</div><div style="transform: rotate(180deg)">${card.display}</div>`;
+                cardEl.onclick = () => toggleCard(index);
+                
+                container.appendChild(cardEl);
+            });
+        }
+        
+        // Update players display
+        function updatePlayers() {
+            const container = document.getElementById('playersList');
+            if (!container) return;
+            
+            container.innerHTML = '<h4>Players</h4>';
+            gameState.players?.forEach(player => {
+                const div = document.createElement('div');
+                div.className = 'player-item';
+                if (player === gameState.currentPlayer) div.classList.add('current');
+                if (gameState.aiPlayers?.includes(player)) div.classList.add('ai');
+                
+                div.textContent = player + (player === gameState.currentPlayer ? ' 👑' : '');
+                if (gameState.aiPlayers?.includes(player)) div.textContent += ' 🤖';
+                
+                container.appendChild(div);
+            });
+        }
+        
+        // Update melds display
+        function updateMelds() {
+            const meldsDiv = document.getElementById('playerMelds');
+            if (!meldsDiv) return;
+            
+            if (gameState.melds.length === 0) {
+                meldsDiv.innerHTML = '<p style="color: rgba(255,255,255,0.6);">No melds yet</p>';
+                return;
+            }
+            
+            meldsDiv.innerHTML = '';
+            gameState.melds.forEach(meld => {
+                const meldDiv = document.createElement('div');
+                meldDiv.style.cssText = 'margin: 8px 0; padding: 10px; background: rgba(255,255,255,0.15); border-radius: 8px; border: 2px solid rgba(76,175,80,0.3);';
+                
+                let meldHTML = `<strong style="color: var(--green);">${meld.type.toUpperCase()}:</strong> `;
+                meld.cards.forEach(card => {
+                    meldHTML += `<span style="color: ${card.color === 'red' ? '#d32f2f' : '#1976d2'}; margin-right: 6px; font-weight: bold;">${card.display}</span>`;
+                });
+                
+                meldDiv.innerHTML = meldHTML;
+                meldsDiv.appendChild(meldDiv);
+            });
+            
+            // Update all player melds
+            updateAllPlayerMelds();
+        }
+        
+        // Update all player melds
+        function updateAllPlayerMelds() {
+            const container = document.getElementById('allPlayerMelds');
+            if (!container || !gameState.allPlayerMelds) return;
+            
+            let hasAnyMelds = false;
+            container.innerHTML = '';
+            
+            Object.entries(gameState.allPlayerMelds).forEach(([playerName, playerMelds]) => {
+                if (playerMelds.length > 0) {
+                    hasAnyMelds = true;
+                    const playerDiv = document.createElement('div');
+                    playerDiv.style.cssText = 'margin-bottom: 15px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px;';
+                    
+                    const isAI = gameState.aiPlayers?.includes(playerName);
+                    playerDiv.innerHTML = `
+                        <h5 style="margin: 0; color: ${isAI ? 'var(--ai-blue)' : 'var(--gold)'}; font-size: 14px;">
+                            ${playerName}${isAI ? ' 🤖' : ''}
+                        </h5>
+                    `;
+                    
+                    playerMelds.forEach(meld => {
+                        const meldDiv = document.createElement('div');
+                        meldDiv.style.cssText = 'margin: 5px 0; padding: 8px; background: rgba(255,255,255,0.1); border-radius: 6px;';
+                        
+                        let meldHTML = `<strong>${meld.type}:</strong> `;
+                        meld.cards.forEach(card => {
+                            meldHTML += `<span style="background: white; color: ${card.color === 'red' ? '#d32f2f' : '#1976d2'}; padding: 3px 4px; border-radius: 3px; font-weight: bold; font-size: 10px; margin-right: 4px;">${card.display}</span>`;
+                        });
+                        
+                        meldDiv.innerHTML = meldHTML;
+                        playerDiv.appendChild(meldDiv);
+                    });
+                    
+                    container.appendChild(playerDiv);
+                }
+            });
+            
+            if (!hasAnyMelds) {
+                container.innerHTML = '<p style="color: rgba(255,255,255,0.6);">No melds yet</p>';
+            }
+        }
+        
+        // Update buttons
+        function updateButtons() {
+            const canAct = gameState.isMyTurn && !gameState.layoffMode;
+            
+            document.getElementById('setBtn').disabled = !canAct || gameState.selectedCards.length < 3;
+            document.getElementById('runBtn').disabled = !canAct || gameState.selectedCards.length < 4;
+            document.getElementById('discardBtn').disabled = !canAct || !gameState.hasDrawn || gameState.selectedCards.length !== 1;
+            
+            const layoffBtn = document.getElementById('layoffBtn');
+            if (layoffBtn) {
+                layoffBtn.disabled = !gameState.hasGoneDown || !gameState.isMyTurn;
+                layoffBtn.textContent = gameState.layoffMode ? 'Cancel Layoff' : 'Lay Off';
+            }
+        }
+        
+        // Toggle card selection
+        function toggleCard(index) {
+            const idx = gameState.selectedCards.indexOf(index);
+            if (idx > -1) {
+                gameState.selectedCards.splice(idx, 1);
+            } else {
+                gameState.selectedCards.push(index);
+            }
+            playSound('click');
+            updateUI();
+        }
+        
+        // Game actions
+        function joinGame() {
+            const name = document.getElementById('playerName').value.trim();
+            const code = document.getElementById('gameCode').value.trim();
+            const aiCount = parseInt(document.getElementById('aiCount').value) || 0;
+            
+            if (!name) {
+                showNotification("Please enter your name", "error");
+                return;
+            }
+            
+            gameState.myName = name;
+            socket.emit('joinGame', { playerName: name, gameCode: code, aiCount });
+        }
+        
+        function startGame() {
+            socket.emit('startGame');
+        }
+        
+        function drawCard() {
+            if (!gameState.isMyTurn || gameState.hasDrawn) return;
+            socket.emit('drawCard');
+            playSound('click');
+        }
+        
+        function pickUpDiscard() {
+            if (!gameState.isMyTurn || gameState.hasDrawn) return;
+            socket.emit('pickUpDiscard');
+            playSound('click');
+        }
+        
+        function makeSet() {
+            if (gameState.selectedCards.length < 3) return;
+            socket.emit('makeMeld', { 
+                cardIndices: gameState.selectedCards, 
+                meldType: 'set' 
+            });
+            gameState.selectedCards = [];
+        }
+        
+        function makeRun() {
+            if (gameState.selectedCards.length < 4) return;
+            socket.emit('makeMeld', { 
+                cardIndices: gameState.selectedCards, 
+                meldType: 'run' 
+            });
+            gameState.selectedCards = [];
+        }
+        
+        function discardCard() {
+            if (gameState.selectedCards.length !== 1) return;
+            socket.emit('discardCard', { 
+                cardIndex: gameState.selectedCards[0] 
+            });
+            gameState.selectedCards = [];
+        }
+        
+        function toggleLayoff() {
+            gameState.layoffMode = !gameState.layoffMode;
+            updateUI();
+        }
+        
+        function sortBySuit() {
+            const suitOrder = { 'hearts': 0, 'diamonds': 1, 'clubs': 2, 'spades': 3 };
+            const rankOrder = { 'A': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13 };
+            
+            gameState.hand.sort((a, b) => {
+                const suitDiff = suitOrder[a.suit] - suitOrder[b.suit];
+                return suitDiff || rankOrder[a.rank] - rankOrder[b.rank];
+            });
+            
+            updateHand();
+            playSound('click');
+        }
+        
+        function sortByRank() {
+            const rankOrder = { 'A': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13 };
+            const suitOrder = { 'hearts': 0, 'diamonds': 1, 'clubs': 2, 'spades': 3 };
+            
+            gameState.hand.sort((a, b) => {
+                const rankDiff = rankOrder[a.rank] - rankOrder[b.rank];
+                return rankDiff || suitOrder[a.suit] - suitOrder[b.suit];
+            });
+            
+            updateHand();
+            playSound('click');
+        }
+        
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            addMessage('Welcome to Slattery Shanghai!');
+            addMessage('🎮 7 rounds of strategic card play');
+            addMessage('🤖 Add AI players for solo practice!');
+            addMessage('🔊 Click sound icon to toggle audio');
+            addMessage('Click "Connect to Server" to begin');
         });
     </script>
 </body>
