@@ -1895,9 +1895,11 @@
 
             if (buttons.layoffBtn) {
                 if (layoffMode) {
+                    buttons.layoffBtn.textContent = 'Cancel Lay-off';
                     buttons.layoffBtn.onclick = cancelLayoff;
                     buttons.layoffBtn.disabled = false;
                 } else {
+                    buttons.layoffBtn.textContent = 'Lay Off Card';
                     buttons.layoffBtn.onclick = enterLayoffMode;
                     // Disable if it's not the player's turn OR if they haven't met their contract
                     buttons.layoffBtn.disabled = !isMyTurn || !meetsRequirements;
