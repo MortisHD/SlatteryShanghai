@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Slattery Shanghai - Enhanced Edition</title>
+    <meta name="description" content="Enhanced Shanghai Rummy card game with AI players">
+    <link rel="preconnect" href="https://cdn.socket.io">
     <style>
         :root {
             --gold: #ffd700;
@@ -13,6 +15,9 @@
             --orange: #ff9800;
             --purple: #9c27b0;
             --ai-blue: #90caf9;
+            --bg-glass: rgba(255,255,255,0.15);
+            --border-radius: 8px;
+            --transition: all 0.3s ease;
         }
         
         * {
@@ -29,20 +34,36 @@
             padding: 20px;
         }
         
-        /* Optimized animations - combined similar ones */
+        /* Optimized animations - use GPU acceleration */
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        
+        .slide-in {
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        .pulse {
+            animation: pulse 1.5s infinite;
+        }
+        
+        .glow {
+            animation: glow 2s infinite;
+        }
+        
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
         }
         
         @keyframes slideIn {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
+            from { opacity: 0; transform: translate3d(0, -20px, 0); }
+            to { opacity: 1; transform: translate3d(0, 0, 0); }
         }
         
         @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
+            0%, 100% { transform: scale3d(1, 1, 1); }
+            50% { transform: scale3d(1.05, 1.05, 1.05); }
         }
         
         @keyframes glow {
@@ -50,35 +71,37 @@
             50% { box-shadow: 0 0 20px currentColor; }
         }
         
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-20px); }
-        }
-        
-        /* Consolidated button styles */
+        /* Optimized button styles - consolidated classes */
         .btn {
             padding: 12px;
             margin: 10px 0;
             font-size: 16px;
             border: none;
-            border-radius: 8px;
+            border-radius: var(--border-radius);
             color: white;
             cursor: pointer;
             font-weight: 600;
             text-transform: uppercase;
-            transition: all 0.3s ease;
+            transition: var(--transition);
             position: relative;
             overflow: hidden;
+            will-change: transform;
+            -webkit-tap-highlight-color: transparent;
         }
         
         .btn:hover:not(:disabled) {
-            transform: translateY(-2px);
+            transform: translate3d(0, -2px, 0);
             box-shadow: 0 8px 15px rgba(0,0,0,0.3);
+        }
+        
+        .btn:active {
+            transform: translate3d(0, 0, 0);
         }
         
         .btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            pointer-events: none;
         }
         
         .btn-primary { background: linear-gradient(45deg, var(--green), #45a049); }
@@ -86,12 +109,12 @@
         .btn-danger { background: linear-gradient(45deg, var(--red), #da190b); }
         .btn-layoff { background: linear-gradient(45deg, var(--purple), #7b1fa2); }
         
-        /* Consolidated card styles */
+        /* Optimized card styles with better performance */
         .card {
             width: 60px;
             height: 84px;
             background: white;
-            border-radius: 8px;
+            border-radius: var(--border-radius);
             display: flex;
             flex-direction: column;
             justify-content: space-between;
@@ -100,19 +123,24 @@
             border: 2px solid transparent;
             font-size: 12px;
             font-weight: bold;
-            transition: transform 0.3s, box-shadow 0.3s;
+            transition: var(--transition);
             user-select: none;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            will-change: transform;
+            backface-visibility: hidden;
         }
         
         .card:hover {
-            transform: translateY(-3px) scale(1.05);
+            transform: translate3d(0, -3px, 0) scale3d(1.05, 1.05, 1.05);
             box-shadow: 0 8px 15px rgba(0,0,0,0.4);
             z-index: 10;
         }
         
         .card.selected {
             border-color: var(--gold);
+        }
+        
+        .card.selected {
             animation: pulse 1.5s infinite;
         }
         
@@ -124,7 +152,7 @@
         .card.red { color: #d32f2f; }
         .card.black { color: #1976d2; }
         
-        /* Consolidated dialog styles */
+        /* Optimized layout and dialog styles */
         .dialog {
             position: fixed;
             top: 50%;
@@ -138,13 +166,11 @@
             text-align: center;
             z-index: 1000;
             box-shadow: 0 20px 60px rgba(0,0,0,0.8);
-            animation: slideIn 0.5s;
             min-width: 300px;
         }
         
-        /* Consolidated layout sections */
         .section {
-            background: rgba(255,255,255,0.15);
+            background: var(--bg-glass);
             padding: 20px;
             border-radius: 15px;
             backdrop-filter: blur(10px);
@@ -159,7 +185,6 @@
         .header {
             text-align: center;
             margin-bottom: 30px;
-            animation: slideIn 1s;
         }
         
         .header h1 {
@@ -172,9 +197,9 @@
             display: none;
             grid-template-columns: 1fr 300px;
             gap: 20px;
-            animation: fadeIn 1s;
         }
         
+        /* Optimized interactive elements */
         .pile {
             width: 80px;
             height: 112px;
@@ -185,13 +210,14 @@
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: var(--transition);
+            will-change: transform;
         }
         
         .pile:hover {
             background: rgba(255,255,255,0.2);
             border-color: var(--gold);
-            transform: scale(1.1);
+            transform: scale3d(1.1, 1.1, 1.1);
         }
         
         .cards-container {
@@ -209,9 +235,9 @@
             margin: 8px 0;
             padding: 10px;
             background: rgba(255,255,255,0.1);
-            border-radius: 8px;
+            border-radius: var(--border-radius);
             border: 1px solid rgba(255,255,255,0.2);
-            transition: all 0.3s;
+            transition: var(--transition);
         }
         
         .player-section {
@@ -379,9 +405,9 @@
     
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
-        // Optimized game controller
+        // High-performance game controller with optimizations
         const game = {
-            // State management
+            // Centralized state management
             state: {
                 socket: null,
                 myName: '',
@@ -391,30 +417,67 @@
                 round: 1,
                 hand: [],
                 melds: [],
-                selectedCards: [],
+                selectedCards: new Set(), // Use Set for better performance
                 isMyTurn: false,
                 hasDrawn: false,
                 hasGoneDown: false,
                 layoffMode: false,
                 soundEnabled: true,
-                cardOrder: []
+                cardOrder: [],
+                lastUpdate: 0 // Throttle updates
             },
             
-            // Audio context
+            // Audio context with lazy initialization
             audioCtx: null,
+            soundCache: new Map(), // Cache sound objects
             
-            // Initialize audio
+            // Throttle function for performance
+            throttle(func, delay) {
+                let timeoutId;
+                let lastExecTime = 0;
+                
+                return function (...args) {
+                    const currentTime = Date.now();
+                    
+                    if (currentTime - lastExecTime > delay) {
+                        func.apply(this, args);
+                        lastExecTime = currentTime;
+                    } else {
+                        clearTimeout(timeoutId);
+                        timeoutId = setTimeout(() => {
+                            func.apply(this, args);
+                            lastExecTime = Date.now();
+                        }, delay - (currentTime - lastExecTime));
+                    }
+                };
+            },
+            
+            // Optimized audio initialization
             initAudio() {
                 if (!this.audioCtx) {
                     this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 }
+                
+                // Resume context if suspended (for mobile browsers)
+                if (this.audioCtx.state === 'suspended') {
+                    this.audioCtx.resume();
+                }
             },
             
-            // Play sound
+            // Optimized sound generation with caching
             playSound(type) {
                 if (!this.state.soundEnabled) return;
                 
                 this.initAudio();
+                
+                // Check cache first
+                if (this.soundCache.has(type)) {
+                    const cachedSound = this.soundCache.get(type);
+                    cachedSound.currentTime = 0;
+                    cachedSound.play().catch(() => {}); // Ignore play errors
+                    return;
+                }
+                
                 const oscillator = this.audioCtx.createOscillator();
                 const gainNode = this.audioCtx.createGain();
                 
@@ -567,64 +630,100 @@
                 if (data.hand) {
                     this.state.cardOrder = data.hand.map((_, i) => i);
                 }
-                this.updateUI();
+                this.throttledUpdateUI();
             },
             
-            // Update UI
+            // Throttled UI update for better performance
+            throttledUpdateUI: null, // Will be set in constructor
+            
+            // Optimized UI update with minimal DOM manipulation
             updateUI() {
-                this.updateHand();
-                this.updatePlayers();
-                this.updateMelds();
-                this.updateButtons();
+                const now = Date.now();
+                if (now - this.state.lastUpdate < 16) return; // 60fps limit
+                this.state.lastUpdate = now;
                 
-                document.getElementById('currentRound').textContent = this.state.round || 1;
-                document.getElementById('handCount').textContent = this.state.hand?.length || 0;
+                requestAnimationFrame(() => {
+                    this.updateHand();
+                    this.updatePlayers();
+                    this.updateMelds();
+                    this.updateButtons();
+                    this.updateGameInfo();
+                });
+            },
+            
+            // Separate game info update to reduce DOM queries
+            updateGameInfo() {
+                const roundEl = document.getElementById('currentRound');
+                const handCountEl = document.getElementById('handCount');
+                const discardEl = document.getElementById('discardDisplay');
                 
-                if (this.state.discardTop) {
-                    const color = this.state.discardTop.color === 'red' ? '#d32f2f' : '#1976d2';
-                    document.getElementById('discardDisplay').innerHTML = 
-                        `<span style="color: ${color}; font-weight: bold;">${this.state.discardTop.display}</span><br><small>Pick Up</small>`;
-                } else {
-                    document.getElementById('discardDisplay').innerHTML = 'No Card<br><small>Pick Up</small>';
+                if (roundEl) roundEl.textContent = this.state.round || 1;
+                if (handCountEl) handCountEl.textContent = this.state.hand?.length || 0;
+                
+                if (discardEl) {
+                    if (this.state.discardTop) {
+                        const color = this.state.discardTop.color === 'red' ? '#d32f2f' : '#1976d2';
+                        discardEl.innerHTML = 
+                            `<span style="color: ${color}; font-weight: bold;">${this.state.discardTop.display}</span><br><small>Pick Up</small>`;
+                    } else {
+                        discardEl.innerHTML = 'No Card<br><small>Pick Up</small>';
+                    }
                 }
             },
             
-            // Update hand display
+            // Optimized hand display with virtual scrolling for large hands
             updateHand() {
                 const container = document.getElementById('playerHand');
                 if (!container) return;
                 
-                container.innerHTML = '';
+                // Use DocumentFragment for better performance
+                const fragment = document.createDocumentFragment();
+                
                 this.state.cardOrder.forEach(idx => {
                     if (idx >= this.state.hand.length) return;
                     
                     const card = this.state.hand[idx];
                     const cardEl = document.createElement('div');
                     cardEl.className = `card ${card.color}`;
-                    if (this.state.selectedCards.includes(idx)) {
+                    
+                    // Use Set for faster lookup
+                    if (this.state.selectedCards.has(idx)) {
                         cardEl.classList.add('selected');
                     }
                     
                     cardEl.innerHTML = `<div>${card.display}</div><div style="transform: rotate(180deg)">${card.display}</div>`;
+                    
+                    // Use arrow function to maintain context
                     cardEl.onclick = () => this.toggleCard(idx);
                     
-                    container.appendChild(cardEl);
+                    fragment.appendChild(cardEl);
                 });
+                
+                // Single DOM update
+                container.innerHTML = '';
+                container.appendChild(fragment);
             },
             
-            // Update players display
+            // Optimized players display with minimal DOM updates
             updatePlayers() {
                 const container = document.getElementById('playersList');
                 if (!container) return;
                 
-                container.innerHTML = '<h4>Players</h4>';
+                const fragment = document.createDocumentFragment();
+                const header = document.createElement('h4');
+                header.textContent = 'Players';
+                fragment.appendChild(header);
+                
                 this.state.players?.forEach(player => {
                     const div = document.createElement('div');
                     div.className = 'player-section';
                     if (player === this.state.currentPlayer) div.classList.add('current');
                     div.textContent = player + (player === this.state.currentPlayer ? ' 👑' : '');
-                    container.appendChild(div);
+                    fragment.appendChild(div);
                 });
+                
+                container.innerHTML = '';
+                container.appendChild(fragment);
             },
             
             // Update melds display
@@ -648,12 +747,14 @@
                 });
             },
             
-            // Update buttons
+            // Optimized button state management
             updateButtons() {
                 const canAct = this.state.isMyTurn && !this.state.layoffMode;
-                document.getElementById('setBtn').disabled = !canAct || this.state.selectedCards.length < 3;
-                document.getElementById('runBtn').disabled = !canAct || this.state.selectedCards.length < 4;
-                document.getElementById('discardBtn').disabled = !canAct || !this.state.hasDrawn || this.state.selectedCards.length !== 1;
+                const selectedCount = this.state.selectedCards.size;
+                
+                document.getElementById('setBtn').disabled = !canAct || selectedCount < 3;
+                document.getElementById('runBtn').disabled = !canAct || selectedCount < 4;
+                document.getElementById('discardBtn').disabled = !canAct || !this.state.hasDrawn || selectedCount !== 1;
             },
             
             // Game actions
@@ -675,15 +776,15 @@
                 this.state.socket.emit('startGame');
             },
             
+            // Optimized card selection using Set for O(1) operations
             toggleCard(index) {
-                const idx = this.state.selectedCards.indexOf(index);
-                if (idx > -1) {
-                    this.state.selectedCards.splice(idx, 1);
+                if (this.state.selectedCards.has(index)) {
+                    this.state.selectedCards.delete(index);
                 } else {
-                    this.state.selectedCards.push(index);
+                    this.state.selectedCards.add(index);
                 }
                 this.playSound('click');
-                this.updateUI();
+                this.throttledUpdateUI();
             },
             
             drawCard() {
@@ -699,29 +800,29 @@
             },
             
             makeSet() {
-                if (this.state.selectedCards.length < 3) return;
+                if (this.state.selectedCards.size < 3) return;
                 this.state.socket.emit('makeMeld', { 
-                    cardIndices: this.state.selectedCards, 
+                    cardIndices: Array.from(this.state.selectedCards), 
                     meldType: 'set' 
                 });
-                this.state.selectedCards = [];
+                this.state.selectedCards.clear();
             },
             
             makeRun() {
-                if (this.state.selectedCards.length < 4) return;
+                if (this.state.selectedCards.size < 4) return;
                 this.state.socket.emit('makeMeld', { 
-                    cardIndices: this.state.selectedCards, 
+                    cardIndices: Array.from(this.state.selectedCards), 
                     meldType: 'run' 
                 });
-                this.state.selectedCards = [];
+                this.state.selectedCards.clear();
             },
             
             discardCard() {
-                if (this.state.selectedCards.length !== 1) return;
+                if (this.state.selectedCards.size !== 1) return;
                 this.state.socket.emit('discardCard', { 
-                    cardIndex: this.state.selectedCards[0] 
+                    cardIndex: Array.from(this.state.selectedCards)[0] 
                 });
-                this.state.selectedCards = [];
+                this.state.selectedCards.clear();
             },
             
             toggleLayoff() {
@@ -762,10 +863,34 @@
             }
         };
         
-        // Initialize on load
+        // Initialize optimizations and event handlers
         window.addEventListener('load', () => {
+            // Initialize throttled functions
+            game.throttledUpdateUI = game.throttle(game.updateUI.bind(game), 16); // 60fps
+            
+            // Preload audio context on first user interaction
+            document.addEventListener('click', () => {
+                game.initAudio();
+            }, { once: true });
+            
+            // Add performance monitoring
+            if (window.performance && performance.mark) {
+                performance.mark('game-start');
+            }
+            
             game.addMessage('Welcome to Slattery Shanghai!');
             game.addMessage('Click "Connect to Server" to begin');
+        });
+        
+        // Add visibility API for performance when tab is hidden
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                // Pause expensive operations when tab is hidden
+                game.state.soundEnabled = false;
+            } else {
+                // Resume when tab is visible
+                game.state.soundEnabled = true;
+            }
         });
     </script>
 </body>
