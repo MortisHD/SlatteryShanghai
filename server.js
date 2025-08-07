@@ -19,7 +19,7 @@ app.use(express.static(__dirname));
 
 // Serve the game at root path
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'slattery-shanghai.html'));
+    res.sendFile(path.join(__dirname, 'slattery-shanghai-fixed.html'));
 });
 
 // Game state storage
@@ -546,7 +546,7 @@ class Game {
             if (playerSocket) {
                 playerSocket.emit('discardOffer', {
                     card: discardCard,
-                    timeLimit: 3000
+                    timeLimit: 10000
                 });
                 
                 // Auto-decline after timeout
@@ -554,7 +554,7 @@ class Game {
                     if (this.turnState.buyPhase && this.getCurrentPlayer() === currentPlayer) {
                         this.handleCurrentPlayerDiscardDecision(currentPlayer, false);
                     }
-                }, 3000);
+                }, 10000);
             } else {
                 // Player not connected, auto-decline
                 this.handleCurrentPlayerDiscardDecision(currentPlayer, false);
@@ -624,7 +624,7 @@ class Game {
                     if (playerSocket) {
                         playerSocket.emit('buyRequest', {
                             card: discardCard,
-                            timeLimit: 3000
+                            timeLimit: 10000
                         });
                     }
                 }
@@ -634,7 +634,7 @@ class Game {
         // Set timer to resolve buy phase
         this.turnState.buyTimer = setTimeout(() => {
             this.resolveBuyPhase();
-        }, 3000);
+        }, 10000);
     }
 
     submitBuyRequest(playerName, wantsCard) {
