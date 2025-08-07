@@ -1852,11 +1852,22 @@
         }
         
         function updateButtons() {
-            const isMyTurn = gameState.isMyTurn;
-            const hasDrawn = gameState.hasDrawn;
-            const hasSelected = gameState.selectedCards.length > 0;
-            const canBuy = gameState.buysRemaining > 0 && !isMyTurn && gameState.discardTop;
-            
+            const { isMyTurn, hasDrawn, selectedCards, buysRemaining, discardTop, roundRequirements, melds } = gameState;
+            const hasSelected = selectedCards.length > 0;
+            const canBuy = buysRemaining > 0 && !isMyTurn && discardTop;
+
+            // Check if the player has met their meld requirements for the current round
+            let meetsRequirements = false;
+            if (roundRequirements && melds) {
+                let setsCount = 0;
+                let runsCount = 0;
+                melds.forEach(meld => {
+                    if (meld.type === 'set') setsCount++;
+                    if (meld.type === 'run') runsCount++;
+                });
+                meetsRequirements = setsCount >= roundRequirements.sets && runsCount >= roundRequirements.runs;
+            }
+
             const buttons = {
                 setBtn: document.getElementById('setBtn'),
                 runBtn: document.getElementById('runBtn'),
@@ -1864,63 +1875,34 @@
                 buyBtn: document.getElementById('buyBtn'),
                 layoffBtn: document.getElementById('layoffBtn')
             };
-            
+
             if (buttons.setBtn) {
-                buttons.setBtn.disabled = layoffMode || !isMyTurn || !hasSelected || gameState.selectedCards.length < 3;
+                buttons.setBtn.disabled = layoffMode || !isMyTurn || !hasSelected || selectedCards.length < 3;
             }
-            
+
             if (buttons.runBtn) {
-                buttons.runBtn.disabled = layoffMode || !isMyTurn || !hasSelected || gameState.selectedCards.length < 4;
+                buttons.runBtn.disabled = layoffMode || !isMyTurn || !hasSelected || selectedCards.length < 4;
             }
-            
+
             if (buttons.discardBtn) {
-                const canDiscard = isMyTurn && hasDrawn && gameState.selectedCards.length === 1 && !layoffMode;
+                const canDiscard = isMyTurn && hasDrawn && selectedCards.length === 1 && !layoffMode;
                 buttons.discardBtn.disabled = !canDiscard;
             }
-            
+
             if (buttons.buyBtn) {
                 buttons.buyBtn.disabled = layoffMode || !canBuy;
             }
-            
+
             if (buttons.layoffBtn) {
                 if (layoffMode) {
                     buttons.layoffBtn.onclick = cancelLayoff;
+                    buttons.layoffBtn.disabled = false;
                 } else {
                     buttons.layoffBtn.onclick = enterLayoffMode;
+                    // Disable if it's not the player's turn OR if they haven't met their contract
+                    buttons.layoffBtn.disabled = !isMyTurn || !meetsRequirements;
                 }
-                buttons.layoffBtn.disabled = false;
             }
-        }
-        
-        function updateOverlayScoreboard() {
-            const scoresDiv = document.getElementById('overlayScoresTable');
-            if (!scoresDiv) return;
-            
-            if (Object.keys(gameState.scores).length === 0) {
-                scoresDiv.innerHTML = '<p style="text-align: center; color: rgba(255,255,255,0.6);">No scores yet</p>';
-                return;
-            }
-            
-            let tableHTML = '<table><tr><th>Player</th>';
-            for (let i = 1; i <= 7; i++) {
-                tableHTML += `<th>R${i}</th>`;
-            }
-            tableHTML += '<th>Total</th></tr>';
-            
-            gameState.players.forEach(player => {
-                const playerScores = gameState.scores[player] || Array(7).fill(0);
-                const total = playerScores.reduce((sum, score) => sum + (score || 0), 0);
-                const isAI = gameState.aiPlayers.includes(player);
-                
-                tableHTML += `<tr><td class="player-name ${isAI ? 'ai-player' : ''}">${player}${isAI ? ' 🤖' : ''}</td>`;
-                playerScores.forEach(score => {
-                    tableHTML += `<td>${score || '-'}</td>`;
-                });
-                tableHTML += `<td class="total-score">${total}</td></tr>`;
-            });
-            
-            tableHTML += '</table>';
-            scoresDiv.innerHTML = tableHTML;
         }
         
         function showFinalResults(results) {
