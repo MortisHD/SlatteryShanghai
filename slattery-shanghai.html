@@ -442,6 +442,17 @@
             <button class="btn-secondary" onclick="submitBuy(false)">No</button>
         </div>
     </div>
+
+    <!-- Discard Offer Dialog -->
+    <div id="discardDialog" class="dialog" style="display: none;">
+        <h3>Take Discard?</h3>
+        <p>Do you want to take: <span id="discardCardDisplay"></span></p>
+        <p>from the discard pile?</p>
+        <div style="margin-top: 15px;">
+            <button class="btn-primary" onclick="submitDiscardDecision(true)">Yes, Take It</button>
+            <button class="btn-secondary" onclick="submitDiscardDecision(false)">No, Draw from Deck</button>
+        </div>
+    </div>
     
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
@@ -590,6 +601,10 @@
             socket.on('buyRequest', (data) => {
                 handleBuyRequest(data);
             });
+
+            socket.on('discardOffer', (data) => {
+                handleDiscardOffer(data);
+            });
             
             socket.on('error', (data) => {
                 showNotification(data.message, "error");
@@ -634,6 +649,35 @@
             updateUI();
         }
         
+        // Handle discard offer (current player gets first chance)
+        function handleDiscardOffer(data) {
+            if (!data.card) return;
+            
+            const dialog = document.getElementById('discardDialog');
+            const cardDisplay = document.getElementById('discardCardDisplay');
+            
+            if (cardDisplay && dialog) {
+                const color = data.card.color === 'red' ? '#d32f2f' : '#1976d2';
+                cardDisplay.innerHTML = `<span style="color: ${color}; font-weight: bold;">${data.card.display}</span>`;
+                dialog.style.display = 'block';
+                
+                // Auto-decline after time limit
+                setTimeout(() => {
+                    if (dialog.style.display !== 'none') {
+                        submitDiscardDecision(false);
+                    }
+                }, data.timeLimit || 3000);
+            }
+        }
+
+        // Submit discard decision
+        function submitDiscardDecision(wantsDiscard) {
+            const dialog = document.getElementById('discardDialog');
+            if (dialog) dialog.style.display = 'none';
+            
+            socket.emit('discardDecision', { wantsDiscard: wantsDiscard });
+        }
+
         // Handle buy request
         function handleBuyRequest(data) {
             if (!data.card || gameState.buysRemaining <= 0) return;
