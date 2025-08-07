@@ -389,6 +389,18 @@
                     <button class="btn btn-danger" onclick="game.discardCard()" id="discardBtn">Discard</button>
                 </div>
                 
+                <!-- Buy request dialog -->
+                <div id="buyDialog" class="dialog" style="display: none;">
+                    <h3>Buy Card?</h3>
+                    <p>Do you want to buy: <span id="buyCardDisplay"></span></p>
+                    <p>You will draw this card plus one from deck</p>
+                    <p>Buys remaining: <span id="buyCount"></span></p>
+                    <div style="margin-top: 15px;">
+                        <button class="btn btn-primary" onclick="game.submitBuy(true)">Yes, Buy</button>
+                        <button class="btn btn-secondary" onclick="game.submitBuy(false)">No</button>
+                    </div>
+                </div>
+                
                 <div style="margin-top: 10px;">
                     <button class="btn btn-secondary" onclick="game.sortBySuit()">Sort by Suit</button>
                     <button class="btn btn-secondary" onclick="game.sortByRank()">Sort by Rank</button>
@@ -588,6 +600,10 @@
                     if (data.message.includes('won')) this.playSound('success');
                 });
                 
+                socket.on('buyRequest', (data) => {
+                    this.handleBuyRequest(data);
+                });
+                
                 socket.on('error', (data) => {
                     this.notify(data.message, "error");
                 });
@@ -633,6 +649,38 @@
                 this.throttledUpdateUI();
             },
             
+            // Handle buy request
+            handleBuyRequest(data) {
+                if (!data.card || this.state.buysRemaining <= 0) return;
+                
+                const dialog = document.getElementById('buyDialog');
+                const cardDisplay = document.getElementById('buyCardDisplay');
+                const buyCount = document.getElementById('buyCount');
+                
+                if (cardDisplay && buyCount && dialog) {
+                    const color = data.card.color === 'red' ? '#d32f2f' : '#1976d2';
+                    cardDisplay.innerHTML = `<span style="color: ${color}; font-weight: bold;">${data.card.display}</span>`;
+                    buyCount.textContent = this.state.buysRemaining;
+                    dialog.style.display = 'block';
+                    
+                    // Auto-close after time limit
+                    setTimeout(() => {
+                        if (dialog.style.display !== 'none') {
+                            this.submitBuy(false);
+                        }
+                    }, data.timeLimit || 3000);
+                }
+            },
+            
+            // Submit buy decision
+            submitBuy(wantCard) {
+                const dialog = document.getElementById('buyDialog');
+                if (dialog) dialog.style.display = 'none';
+                
+                this.state.socket.emit('submitBuyRequest', { wantsCard: wantCard });
+                this.playSound('click');
+            },
+            
             // Throttled UI update for better performance
             throttledUpdateUI: null, // Will be set in constructor
             
@@ -656,9 +704,15 @@
                 const roundEl = document.getElementById('currentRound');
                 const handCountEl = document.getElementById('handCount');
                 const discardEl = document.getElementById('discardDisplay');
+                const reqMeldsEl = document.getElementById('requiredMelds');
                 
-                if (roundEl) roundEl.textContent = this.state.round || 1;
+                if (roundEl) roundEl.textContent = this.state.currentRound || 1;
                 if (handCountEl) handCountEl.textContent = this.state.hand?.length || 0;
+                
+                // Show round requirements
+                if (reqMeldsEl && this.state.roundRequirements) {
+                    reqMeldsEl.textContent = this.state.roundRequirements.melds;
+                }
                 
                 if (discardEl) {
                     if (this.state.discardTop) {
@@ -752,9 +806,17 @@
                 const canAct = this.state.isMyTurn && !this.state.layoffMode;
                 const selectedCount = this.state.selectedCards.size;
                 
+                // Basic action buttons
                 document.getElementById('setBtn').disabled = !canAct || selectedCount < 3;
                 document.getElementById('runBtn').disabled = !canAct || selectedCount < 4;
                 document.getElementById('discardBtn').disabled = !canAct || !this.state.hasDrawn || selectedCount !== 1;
+                
+                // Lay-off button should only be enabled if player has gone down
+                const layoffBtn = document.getElementById('layoffBtn');
+                if (layoffBtn) {
+                    layoffBtn.disabled = !this.state.hasGoneDown || !this.state.isMyTurn;
+                    layoffBtn.textContent = this.state.layoffMode ? 'Cancel Layoff' : 'Lay Off';
+                }
             },
             
             // Game actions
