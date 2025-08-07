@@ -19,7 +19,7 @@ app.use(express.static(__dirname));
 
 // Serve the game at root path
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'slattery-shanghai-fixed.html'));
+    res.sendFile(path.join(__dirname, 'slattery-shanghai.html'));
 });
 
 // Game state storage
@@ -1314,3 +1314,4 @@ process.on('SIGINT', () => {
         process.exit(0);
     });
 });
+
