@@ -3,8 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Slattery Shanghai - Family Card Game</title>
+    <title>Slattery Shanghai - Enhanced Edition</title>
     <style>
+        :root {
+            --gold: #ffd700;
+            --blue: #2a5298;
+            --green: #4caf50;
+            --red: #f44336;
+            --orange: #ff9800;
+            --purple: #9c27b0;
+            --ai-blue: #90caf9;
+        }
+        
         * {
             margin: 0;
             padding: 0;
@@ -19,907 +29,349 @@
             padding: 20px;
         }
         
+        /* Optimized animations - combined similar ones */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 10px currentColor; }
+            50% { box-shadow: 0 0 20px currentColor; }
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+        
+        /* Consolidated button styles */
+        .btn {
+            padding: 12px;
+            margin: 10px 0;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.3);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-primary { background: linear-gradient(45deg, var(--green), #45a049); }
+        .btn-secondary { background: linear-gradient(45deg, var(--orange), #f57c00); }
+        .btn-danger { background: linear-gradient(45deg, var(--red), #da190b); }
+        .btn-layoff { background: linear-gradient(45deg, var(--purple), #7b1fa2); }
+        
+        /* Consolidated card styles */
+        .card {
+            width: 60px;
+            height: 84px;
+            background: white;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 5px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            font-size: 12px;
+            font-weight: bold;
+            transition: transform 0.3s, box-shadow 0.3s;
+            user-select: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .card:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.4);
+            z-index: 10;
+        }
+        
+        .card.selected {
+            border-color: var(--gold);
+            animation: pulse 1.5s infinite;
+        }
+        
+        .card.wanted {
+            border-color: var(--gold);
+            animation: glow 2s infinite;
+        }
+        
+        .card.red { color: #d32f2f; }
+        .card.black { color: #1976d2; }
+        
+        /* Consolidated dialog styles */
+        .dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            padding: 25px;
+            border-radius: 15px;
+            border: 3px solid var(--gold);
+            color: white;
+            text-align: center;
+            z-index: 1000;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+            animation: slideIn 0.5s;
+            min-width: 300px;
+        }
+        
+        /* Consolidated layout sections */
+        .section {
+            background: rgba(255,255,255,0.15);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            margin-bottom: 20px;
+        }
+        
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            position: relative;
-        }
-        
-        .scoreboard-overlay {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: rgba(0,0,0,0.85);
-            padding: 12px;
-            border-radius: 8px;
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255,255,255,0.2);
-            max-width: 280px;
-            z-index: 100;
-            font-size: 11px;
-        }
-        
-        .scoreboard-overlay h4 {
-            margin-bottom: 8px;
-            text-align: center;
-            color: #ffd700;
-            font-size: 14px;
-        }
-        
-        .scoreboard-overlay table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        
-        .scoreboard-overlay th {
-            background: rgba(255,255,255,0.1);
-            padding: 3px 2px;
-            text-align: center;
-            border-bottom: 1px solid rgba(255,255,255,0.2);
-            font-size: 9px;
-        }
-        
-        .scoreboard-overlay td {
-            padding: 3px 2px;
-            text-align: center;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-        }
-        
-        .scoreboard-overlay .player-name {
-            text-align: left;
-            font-weight: bold;
-            max-width: 70px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        
-        .scoreboard-overlay .ai-player {
-            color: #90caf9;
-        }
-        
-        .scoreboard-overlay .total-score {
-            font-weight: bold;
-            color: #ffd700;
         }
         
         .header {
             text-align: center;
-            margin-bottom: 25px;
-        }
-        
-        .slattery-crest {
-            display: inline-block;
-            margin-bottom: 12px;
-        }
-        
-        .crest-image {
-            width: 70px;
-            height: auto;
-            max-height: 85px;
-            object-fit: contain;
-            border: 2px solid rgba(255,255,255,0.3);
-            border-radius: 6px;
-            box-shadow: 0 3px 8px rgba(0,0,0,0.3);
-            background: rgba(255,255,255,0.9);
-            padding: 2px;
-            transition: transform 0.2s ease;
-        }
-        
-        .crest-image:hover {
-            transform: scale(1.03);
+            margin-bottom: 30px;
+            animation: slideIn 1s;
         }
         
         .header h1 {
-            font-size: 2.2rem;
-            margin-bottom: 8px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.4);
-            color: #ffd700;
-        }
-        
-        .game-setup {
-            background: rgba(255,255,255,0.12);
-            padding: 25px;
-            border-radius: 12px;
-            margin-bottom: 25px;
-            backdrop-filter: blur(8px);
-        }
-        
-        .ai-setup {
-            margin: 15px 0;
-            padding: 12px;
-            background: rgba(144,202,249,0.1);
-            border-radius: 8px;
-            border-left: 3px solid #90caf9;
-        }
-        
-        .ai-setup h4 {
-            color: #90caf9;
-            margin-bottom: 8px;
-            font-size: 16px;
-        }
-        
-        .ai-controls {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: 8px;
-            flex-wrap: wrap;
-        }
-        
-        .ai-controls label {
-            font-size: 13px;
-        }
-        
-        .ai-controls input[type="number"] {
-            padding: 6px;
-            border-radius: 4px;
-            border: none;
-            color: black;
-            width: 60px;
+            font-size: 2.5rem;
+            color: var(--gold);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
         }
         
         .game-board {
             display: none;
-            grid-template-columns: 1fr 280px;
-            gap: 18px;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+            animation: fadeIn 1s;
         }
         
-        .main-area {
-            background: rgba(255,255,255,0.12);
-            padding: 18px;
-            border-radius: 12px;
-            backdrop-filter: blur(8px);
-        }
-        
-        .sidebar {
-            background: rgba(255,255,255,0.12);
-            padding: 18px;
-            border-radius: 12px;
-            backdrop-filter: blur(8px);
-        }
-        
-        .status {
-            background: rgba(255,255,255,0.2);
-            padding: 8px;
-            margin: 8px 0;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-        
-        input, button {
-            padding: 10px;
-            margin: 8px 0;
-            font-size: 14px;
-            border: none;
-            border-radius: 6px;
-        }
-        
-        input {
-            width: 100%;
-            color: black;
-        }
-        
-        button {
-            background: #4caf50;
-            color: white;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            font-weight: 500;
-        }
-        
-        button:hover:not(:disabled) {
-            background: #45a049;
-            transform: translateY(-1px);
-        }
-        
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        .btn-secondary {
-            background: #ff9800;
-        }
-        
-        .btn-secondary:hover:not(:disabled) {
-            background: #f57c00;
-        }
-        
-        .btn-danger {
-            background: #f44336;
-        }
-        
-        .btn-danger:hover:not(:disabled) {
-            background: #da190b;
-        }
-        
-        .btn-layoff {
-            background: #9c27b0;
-            padding: 5px 8px;
-            margin: 1px;
-            border-radius: 4px;
-            font-size: 10px;
-            transition: all 0.15s ease;
-        }
-        
-        .btn-layoff:hover:not(:disabled) {
-            background: #7b1fa2;
-        }
-        
-        .btn-organization {
-            background: #673ab7;
-            padding: 6px 8px;
-            margin: 1px;
-            border-radius: 4px;
-            font-size: 11px;
-            transition: all 0.15s ease;
-        }
-        
-        .btn-organization:hover:not(:disabled) {
-            background: #5e35b1;
-        }
-        
-        .messages {
-            background: rgba(0,0,0,0.35);
-            padding: 12px;
-            margin: 15px 0;
-            border-radius: 6px;
-            height: 180px;
-            overflow-y: auto;
-            font-size: 12px;
-        }
-        
-        .round-info {
-            background: rgba(0,0,0,0.25);
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-        }
-        
-        .hand-area {
-            background: rgba(0,0,0,0.25);
-            padding: 15px;
-            border-radius: 8px;
-            margin: 15px 0;
-        }
-        
-        .cards-container {
-            position: relative;
-            min-height: 90px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
-            margin-top: 8px;
-        }
-        
-        .insertion-point {
-            width: 6px;
-            height: 80px;
-            background: transparent;
-            border: 2px dashed transparent;
-            border-radius: 3px;
-            transition: all 0.15s ease;
+        .pile {
+            width: 80px;
+            height: 112px;
+            background: rgba(255,255,255,0.1);
+            border: 3px dashed rgba(255,255,255,0.4);
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            min-width: 6px;
             cursor: pointer;
-            flex-shrink: 0;
+            transition: all 0.3s;
         }
         
-        .card {
-            width: 55px;
-            height: 80px;
-            background: white;
-            color: black;
-            border-radius: 6px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 4px;
-            cursor: pointer;
-            border: 2px solid transparent;
-            font-size: 11px;
-            font-weight: bold;
-            transition: all 0.15s ease;
-            user-select: none;
-        }
-        
-        .card:hover:not(.dragging) {
-            transform: translateY(-2px);
-            box-shadow: 0 3px 6px rgba(0,0,0,0.2);
-        }
-        
-        .card.selected::after,
-        .card.layoff-selected::after {
-            content: '';
-            position: absolute;
-            top: -2px;
-            left: -2px;
-            right: -2px;
-            bottom: -2px;
-            border-radius: 6px;
-            pointer-events: none;
-        }
-        
-        .card.selected {
-            position: relative;
-        }
-        
-        .card.selected::after {
-            border: 2px solid #ffd700;
-            animation: selectedPulse 1.2s infinite;
-        }
-        
-        .card.layoff-selected {
-            position: relative;
-        }
-        
-        .card.layoff-selected::after {
-            border: 2px solid #9c27b0;
-            animation: layoffPulse 1.2s infinite;
-        }
-        
-        @keyframes selectedPulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-        
-        @keyframes layoffPulse {
-            0%, 100% { opacity: 1; border-color: #9c27b0; }
-            50% { opacity: 0.8; border-color: #e91e63; }
-        }
-        
-        .card.dragging {
-            opacity: 0.7;
-            transform: rotate(2deg) scale(1.03);
-            z-index: 1000;
-            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
-        }
-        
-        .card.red {
-            color: #d32f2f;
-        }
-        
-        .card.black {
-            color: #1976d2;
-        }
-        
-        .all-melds-area {
-            background: rgba(0,0,0,0.25);
-            padding: 15px;
-            border-radius: 8px;
-            margin: 15px 0;
-            max-height: 280px;
-            overflow-y: auto;
-        }
-        
-        .player-melds-section {
-            margin-bottom: 15px;
-            padding: 12px;
-            background: rgba(255,255,255,0.06);
-            border-radius: 6px;
-            border-left: 3px solid #4caf50;
-        }
-        
-        .player-melds-section.current-player {
-            border-left-color: #ffd700;
-            background: rgba(255,215,0,0.08);
-        }
-        
-        .player-melds-section.my-melds {
-            border-left-color: #2196f3;
-            background: rgba(33,150,243,0.08);
-        }
-        
-        .player-melds-section.ai-player {
-            border-left-color: #90caf9;
-            background: rgba(144,202,249,0.08);
-        }
-        
-        .player-melds-section.can-go-out {
-            border-left-color: #ff5722;
-            background: rgba(255,87,34,0.1);
-            animation: pulse 2s infinite;
-        }
-        
-        .player-melds-section.close-to-winning {
-            background: rgba(255,152,0,0.1) !important;
-            border-left-color: #ff9800 !important;
-        }
-        
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(255,87,34,0.4); }
-            70% { box-shadow: 0 0 0 8px rgba(255,87,34,0); }
-            100% { box-shadow: 0 0 0 0 rgba(255,87,34,0); }
-        }
-        
-        .player-melds-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-        
-        .player-melds-header h5 {
-            margin: 0;
-            color: #ffd700;
-            font-size: 14px;
-        }
-        
-        .player-melds-header h5.ai-player-name {
-            color: #90caf9;
-        }
-        
-        .hand-count-badge {
+        .pile:hover {
             background: rgba(255,255,255,0.2);
-            padding: 3px 6px;
-            border-radius: 10px;
-            font-size: 11px;
-            color: white;
+            border-color: var(--gold);
+            transform: scale(1.1);
         }
         
-        .requirements-met-badge {
-            background: linear-gradient(45deg, #4caf50, #45a049);
-            color: white;
-            padding: 2px 6px;
-            border-radius: 8px;
-            font-size: 9px;
-            font-weight: bold;
-            margin-left: 6px;
+        .cards-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+            min-height: 90px;
         }
         
         .meld-display {
             display: flex;
             flex-wrap: wrap;
-            gap: 6px;
-            margin: 6px 0;
-            padding: 8px;
-            background: rgba(255,255,255,0.08);
-            border-radius: 4px;
-            border: 1px solid rgba(255,255,255,0.15);
-            position: relative;
-        }
-        
-        .meld-display.layoff-target {
-            border-color: #9c27b0;
-            background: rgba(156,39,176,0.12);
-            box-shadow: 0 0 8px rgba(156,39,176,0.3);
-        }
-        
-        .meld-type-label {
-            font-weight: bold;
-            color: #4caf50;
-            margin-right: 8px;
-            text-transform: uppercase;
-            font-size: 10px;
-        }
-        
-        .meld-card {
-            background: white;
-            color: black;
-            padding: 3px 4px;
-            border-radius: 3px;
-            font-weight: bold;
-            font-size: 10px;
-            min-width: 20px;
-            text-align: center;
-            border: 1px solid #333;
-        }
-        
-        .meld-card.red {
-            color: #d32f2f;
-        }
-        
-        .meld-card.black {
-            color: #1976d2;
-        }
-        
-        .layoff-buttons {
-            position: absolute;
-            top: 4px;
-            right: 4px;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-        }
-        
-        .meld-display:hover .layoff-buttons {
-            opacity: 1;
-        }
-        
-        .no-melds-message {
-            color: rgba(255,255,255,0.5);
-            font-style: italic;
-            text-align: center;
-            padding: 15px;
-        }
-        
-        .melds-toggle {
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.25);
-            color: white;
-            padding: 4px 8px;
-            border-radius: 12px;
-            cursor: pointer;
-            font-size: 10px;
-            transition: all 0.15s ease;
-        }
-        
-        .melds-toggle:hover {
-            background: rgba(255,255,255,0.2);
-        }
-        
-        .melds-collapsed .meld-display {
-            display: none;
-        }
-        
-        .quick-reference {
-            background: rgba(255,255,255,0.1);
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            backdrop-filter: blur(6px);
-        }
-        
-        .quick-reference h4 {
-            margin: 0 0 8px 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            user-select: none;
-            cursor: pointer;
-            font-size: 14px;
-        }
-        
-        .quick-ref-content {
-            transition: all 0.25s ease;
-            overflow: hidden;
-        }
-        
-        .quick-ref-collapsed .quick-ref-content {
-            max-height: 0;
-            padding: 0;
-            margin: 0;
-        }
-        
-        .ref-section {
-            margin-bottom: 8px;
-            padding: 6px;
-            background: rgba(0,0,0,0.2);
-            border-radius: 4px;
-        }
-        
-        .ref-section h5 {
-            margin: 0 0 4px 0;
-            color: #ffd700;
-            font-size: 11px;
-        }
-        
-        .ref-section p {
-            margin: 0;
-            font-size: 10px;
-            color: white;
-        }
-        
-        .progress-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin: 3px 0;
-            font-size: 10px;
-        }
-        
-        .alert-box {
-            min-height: 18px;
-            font-size: 10px;
-            color: #ff9800;
-        }
-        
-        .danger-alert {
-            color: #f44336 !important;
-            font-weight: bold;
-            animation: blink 1s infinite;
-        }
-        
-        .layoff-mode {
-            background: rgba(156,39,176,0.15) !important;
-            border: 2px solid #9c27b0 !important;
-        }
-        
-        .layoff-instructions {
-            background: rgba(156,39,176,0.1);
-            border: 1px solid #9c27b0;
-            padding: 8px;
-            border-radius: 6px;
-            margin: 8px 0;
-            font-size: 11px;
-            color: #e1bee7;
-            animation: layoffGlow 2s infinite;
-        }
-        
-        @keyframes layoffGlow {
-            0%, 100% { background: rgba(156,39,176,0.1); }
-            50% { background: rgba(156,39,176,0.18); }
-        }
-        
-        @keyframes blink {
-            0%, 50% { opacity: 1; }
-            51%, 100% { opacity: 0.6; }
-        }
-        
-        .piles-area {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin: 15px 0;
-        }
-        
-        .pile {
-            width: 70px;
-            height: 100px;
-            background: rgba(255,255,255,0.1);
-            border: 2px dashed rgba(255,255,255,0.3);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
-        
-        .pile:hover {
-            background: rgba(255,255,255,0.18);
-        }
-        
-        .players-list {
-            margin: 15px 0;
-        }
-        
-        .player {
-            background: rgba(255,255,255,0.08);
-            padding: 8px;
-            margin: 4px 0;
-            border-radius: 6px;
-            display: flex;
-            justify-content: space-between;
-            font-size: 13px;
-        }
-        
-        .player.current-turn {
-            background: rgba(255,215,0,0.2);
-            border: 1px solid #ffd700;
-        }
-        
-        .player.ai-player {
-            background: rgba(144,202,249,0.08);
-            border-left: 2px solid #90caf9;
-        }
-        
-        .actions {
-            display: flex;
             gap: 8px;
-            flex-wrap: wrap;
-            margin-top: 15px;
+            margin: 8px 0;
+            padding: 10px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: all 0.3s;
         }
         
-        .actions button {
-            margin: 3px 0;
-            flex: 1;
-            min-width: 100px;
+        .player-section {
+            margin-bottom: 15px;
+            padding: 12px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 8px;
+            border-left: 3px solid var(--green);
         }
         
-        .card-organization {
-            margin-top: 8px;
-            padding-top: 8px;
-            border-top: 1px solid rgba(255,255,255,0.2);
-            text-align: center;
+        .player-section.current {
+            border-left-color: var(--gold);
+            background: rgba(255,215,0,0.1);
+        }
+        
+        .player-section.ai {
+            border-left-color: var(--ai-blue);
+            background: rgba(144,202,249,0.1);
+        }
+        
+        .notification {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            z-index: 1000;
+            animation: slideIn 0.5s;
+        }
+        
+        .notification.success { background: var(--green); }
+        .notification.error { background: var(--red); }
+        .notification.info { background: var(--blue); }
+        
+        .sound-control {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.8);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50px;
+            padding: 10px;
+            cursor: pointer;
+            z-index: 200;
+            transition: all 0.3s;
+        }
+        
+        .sound-control:hover {
+            background: rgba(0,0,0,0.9);
+            border-color: var(--gold);
+            transform: scale(1.1);
+        }
+        
+        .messages {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 8px;
+            height: 200px;
+            overflow-y: auto;
+            margin: 15px 0;
+        }
+        
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            background: rgba(255,255,255,0.95);
         }
         
         @media (max-width: 768px) {
-            .game-board {
-                grid-template-columns: 1fr;
-            }
-            
-            .scoreboard-overlay {
-                position: relative;
-                top: auto;
-                right: auto;
-                margin-bottom: 15px;
-            }
-            
-            .card {
-                width: 42px;
-                height: 60px;
-                font-size: 9px;
-            }
-            
-            .insertion-point {
-                width: 4px !important;
-                height: 60px;
-            }
-            
-            .cards-container {
-                min-height: 65px;
-            }
-            
-            .btn-organization, .btn-layoff {
-                padding: 4px 6px;
-                font-size: 9px;
-                margin: 1px;
-            }
-            
-            .actions button {
-                min-width: 80px;
-                font-size: 12px;
-            }
+            .game-board { grid-template-columns: 1fr; }
+            .card { width: 50px; height: 70px; font-size: 10px; }
         }
     </style>
 </head>
 <body>
+    <div class="sound-control" onclick="game.toggleSound()">
+        <span id="soundIcon">🔊</span>
+    </div>
+    
     <div class="container">
-        <div class="scoreboard-overlay" id="scoreboardOverlay" style="display: none;">
-            <h4>🏆 Scoreboard</h4>
-            <div id="overlayScoresTable"></div>
-        </div>
-        
         <div class="header">
-            <div class="slattery-crest">
-                <img src="slattery-crest.jpg" alt="Slattery Family Crest" class="crest-image" onerror="this.style.display='none'">
-            </div>
             <h1>Slattery Shanghai</h1>
-            <p>Family Card Game - 7 Rounds Edition</p>
+            <p>Enhanced Family Card Game - 7 Rounds Edition</p>
         </div>
         
-        <div id="gameSetup" class="game-setup">
+        <div id="gameSetup" class="section">
             <h2>Join Game</h2>
-            
-            <div class="status" id="connectionStatus">
-                Status: Not connected
-            </div>
-            
-            <input type="text" id="playerName" placeholder="Your name" maxlength="20" />
-            <input type="text" id="gameCode" placeholder="Game code (optional)" maxlength="10" />
-            
-            <div class="ai-setup">
+            <div id="connectionStatus">Status: Not connected</div>
+            <input type="text" id="playerName" placeholder="Your name" maxlength="20">
+            <input type="text" id="gameCode" placeholder="Game code (optional)" maxlength="10">
+            <div class="section">
                 <h4>🤖 AI Players</h4>
-                <p>Add AI opponents for single-player practice or to fill up your game!</p>
-                <div class="ai-controls">
-                    <label for="aiCount">Number of AI players:</label>
-                    <input type="number" id="aiCount" min="0" max="6" value="3" />
-                    <small style="margin-left: 8px; color: rgba(255,255,255,0.7);">
-                        (Perfect for solo practice!)
-                    </small>
-                </div>
+                <label>Number of AI players:</label>
+                <input type="number" id="aiCount" min="0" max="6" value="3" style="width: 80px;">
             </div>
-            
-            <button onclick="testSocket()">Connect to Server</button>
-            <button id="joinBtn" onclick="joinGame()" disabled>Join Game</button>
-            
-            <div id="waitingArea" style="display: none; margin-top: 20px;">
+            <button class="btn btn-primary" onclick="game.connect()">Connect to Server</button>
+            <button class="btn btn-primary" id="joinBtn" onclick="game.joinGame()" disabled>Join Game</button>
+            <div id="waitingArea" style="display: none;">
                 <h3>Waiting for Players...</h3>
-                <div class="status" id="gameInfo">
-                    Game Code: <span id="displayCode">-</span><br>
-                    Players: <span id="playerCount">0</span>
-                </div>
+                <div>Game Code: <span id="displayCode">-</span></div>
+                <div>Players: <span id="playerCount">0</span></div>
                 <div id="currentPlayers"></div>
-                <button id="startBtn" onclick="startGame()" style="display: none;">Start Game</button>
+                <button class="btn btn-primary" id="startBtn" onclick="game.startGame()" style="display: none;">Start Game</button>
             </div>
         </div>
         
         <div id="gameBoard" class="game-board">
-            <div class="main-area">
-                <div class="round-info">
+            <div class="section">
+                <div class="section">
                     <h3>Round <span id="currentRound">1</span> of 7</h3>
-                    <div class="status">
-                        <strong>Required:</strong> <span id="requiredMelds">2 Sets of 3</span><br>
-                        <small id="roundDescription">Two sets of three cards each</small>
+                    <div>Required: <span id="requiredMelds">-</span></div>
+                </div>
+                
+                <div style="display: flex; justify-content: center; gap: 20px; margin: 20px 0;">
+                    <div class="pile" onclick="game.drawCard()">
+                        <div>🂠<br><small>Draw</small></div>
+                    </div>
+                    <div class="pile" onclick="game.pickUpDiscard()">
+                        <div id="discardDisplay">No Card<br><small>Pick Up</small></div>
                     </div>
                 </div>
                 
-                <div class="piles-area">
-                    <div class="pile" onclick="drawCard()" id="drawPile" title="Draw from deck">
-                        <div style="color: white; text-align: center;">
-                            <div>🂠</div>
-                            <small>Draw</small>
-                        </div>
-                    </div>
-                    <div class="pile" onclick="pickUpDiscard()" id="discardPile" title="Pick up discard">
-                        <div id="discardDisplay" style="text-align: center; color: white;">
-                            <div>No Card</div>
-                            <small>Pick Up</small>
-                        </div>
-                    </div>
+                <div class="section">
+                    <h4>Players' Melds</h4>
+                    <div id="allPlayerMelds">No melds yet</div>
                 </div>
                 
-                <div class="all-melds-area">
-                    <h4>🃏 Players' Melds on Table</h4>
-                    <div id="allPlayerMelds">
-                        <p class="no-melds-message">No melds on the table yet</p>
-                    </div>
-                </div>
-                
-                <div class="hand-area" id="handArea">
+                <div class="section">
                     <h4>Your Hand (<span id="handCount">0</span> cards)</h4>
-                    <div id="layoffInstructions" style="display: none;" class="layoff-instructions">
-                        🎯 LAY-OFF MODE: Select 1 card from your hand, then click "Lay Off" on a meld to add your card to it!
-                        <button onclick="cancelLayoff()" style="float: right; background: #f44336; color: white; border: none; padding: 3px 6px; border-radius: 3px; font-size: 9px;">Cancel</button>
-                    </div>
-                    <div id="playerHand" class="cards"></div>
+                    <div id="playerHand" class="cards-container"></div>
                 </div>
                 
-                <div class="hand-area">
+                <div class="section">
                     <h4>Your Melds</h4>
-                    <div id="playerMelds">
-                        <p style="color: rgba(255,255,255,0.6);">No melds yet</p>
-                    </div>
+                    <div id="playerMelds">No melds yet</div>
                 </div>
                 
-                <div class="actions">
-                    <button onclick="makeSet()" id="setBtn">Make Set</button>
-                    <button onclick="makeRun()" id="runBtn">Make Run</button>
-                    <button class="btn-layoff" onclick="enterLayoffMode()" id="layoffBtn">Lay Off Card</button>
-                    <button class="btn-danger" onclick="discardCard()" id="discardBtn">Discard</button>
-                    <button class="btn-secondary" onclick="buyCard()" id="buyBtn">Buy (<span id="buysLeft">3</span>)</button>
-                    
-                    <div class="card-organization">
-                        <small style="color: rgba(255,255,255,0.7); display: block; margin-bottom: 4px;">Card Organization:</small>
-                        <button class="btn-organization" onclick="autoSortBySuit()" title="Sort cards by suit, then rank">
-                            🃏 By Suit
-                        </button>
-                        <button class="btn-organization" onclick="autoSortByRank()" title="Sort cards by rank, then suit">
-                            🔢 By Rank
-                        </button>
-                    </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button class="btn btn-primary" onclick="game.makeSet()" id="setBtn">Make Set</button>
+                    <button class="btn btn-primary" onclick="game.makeRun()" id="runBtn">Make Run</button>
+                    <button class="btn btn-layoff" onclick="game.toggleLayoff()" id="layoffBtn">Lay Off</button>
+                    <button class="btn btn-danger" onclick="game.discardCard()" id="discardBtn">Discard</button>
+                </div>
+                
+                <div style="margin-top: 10px;">
+                    <button class="btn btn-secondary" onclick="game.sortBySuit()">Sort by Suit</button>
+                    <button class="btn btn-secondary" onclick="game.sortByRank()">Sort by Rank</button>
                 </div>
             </div>
             
-            <div class="sidebar">
-                <div class="players-list">
-                    <h4>Players</h4>
-                    <div id="playersList"></div>
-                </div>
-                
-                <div class="quick-reference" id="quickReference">
-                    <h4 onclick="toggleQuickReference()">
-                        📋 Quick Reference <span id="refToggle">▼</span>
-                    </h4>
-                    <div id="quickRefContent" class="quick-ref-content">
-                        <div class="ref-section">
-                            <h5>Current Round Goal:</h5>
-                            <p id="currentGoal">2 Sets of 3</p>
-                        </div>
-                        <div class="ref-section">
-                            <h5>Progress Check:</h5>
-                            <div id="progressIndicator">
-                                <div class="progress-item">
-                                    <span>Requirements Met:</span>
-                                    <span id="reqMet">❌</span>
-                                </div>
-                                <div class="progress-item">
-                                    <span>Can Go Out:</span>
-                                    <span id="canGoOut">❌</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="ref-section">
-                            <h5>Lay-off Guide:</h5>
-                            <div style="font-size: 9px;">
-                                <p>• <strong>Sets:</strong> Add matching rank cards</p>
-                                <p>• <strong>Runs:</strong> Add consecutive cards of same suit</p>
-                                <p>• Click "Lay Off" button, select your card, then target meld</p>
-                            </div>
-                        </div>
-                        <div class="ref-section">
-                            <h5>Next Player Alert:</h5>
-                            <div id="nextPlayerAlert" class="alert-box"></div>
-                        </div>
-                    </div>
-                </div>
-                
+            <div class="section">
+                <div id="playersList"></div>
                 <div class="messages" id="messages"></div>
-                
                 <div id="scoresTable"></div>
             </div>
         </div>
@@ -927,1182 +379,393 @@
     
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
-        // Game state
-        let gameState = {
-            myName: '',
-            gameCode: '',
-            players: [],
-            aiPlayers: [],
-            currentPlayer: '',
-            round: 1,
-            hand: [],
-            melds: [],
-            allPlayerMelds: {},
-            handCounts: {},
-            buysRemaining: 3,
-            selectedCards: [],
-            discardTop: null,
-            isMyTurn: false,
-            hasDrawn: false,
-            scores: {},
-            roundRequirements: null
-        };
-        
-        let socket = null;
-        let draggedCardIndex = null;
-        let draggedOriginalIndex = null;
-        let localCardOrder = [];
-        let pendingReorder = false;
-        let layoffMode = false;
-        let layoffSelectedCard = null;
-        
-        // Utility functions
-        function addMessage(text) {
-            const messages = document.getElementById('messages');
-            if (messages) {
-                const div = document.createElement('div');
-                div.textContent = new Date().toLocaleTimeString() + ': ' + text;
-                messages.appendChild(div);
+        // Optimized game controller
+        const game = {
+            // State management
+            state: {
+                socket: null,
+                myName: '',
+                gameCode: '',
+                players: [],
+                currentPlayer: '',
+                round: 1,
+                hand: [],
+                melds: [],
+                selectedCards: [],
+                isMyTurn: false,
+                hasDrawn: false,
+                hasGoneDown: false,
+                layoffMode: false,
+                soundEnabled: true,
+                cardOrder: []
+            },
+            
+            // Audio context
+            audioCtx: null,
+            
+            // Initialize audio
+            initAudio() {
+                if (!this.audioCtx) {
+                    this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            },
+            
+            // Play sound
+            playSound(type) {
+                if (!this.state.soundEnabled) return;
+                
+                this.initAudio();
+                const oscillator = this.audioCtx.createOscillator();
+                const gainNode = this.audioCtx.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(this.audioCtx.destination);
+                
+                const sounds = {
+                    click: { freq: 800, dur: 0.1 },
+                    success: { freq: 1000, dur: 0.2 },
+                    error: { freq: 200, dur: 0.3 }
+                };
+                
+                const sound = sounds[type] || sounds.click;
+                oscillator.frequency.value = sound.freq;
+                gainNode.gain.setValueAtTime(0.1, this.audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioCtx.currentTime + sound.dur);
+                
+                oscillator.start();
+                oscillator.stop(this.audioCtx.currentTime + sound.dur);
+            },
+            
+            // Toggle sound
+            toggleSound() {
+                this.state.soundEnabled = !this.state.soundEnabled;
+                document.getElementById('soundIcon').textContent = this.state.soundEnabled ? '🔊' : '🔇';
+                if (this.state.soundEnabled) this.playSound('click');
+            },
+            
+            // Show notification
+            notify(message, type = 'info') {
+                const notif = document.createElement('div');
+                notif.className = `notification ${type}`;
+                notif.textContent = message;
+                document.body.appendChild(notif);
+                
+                this.playSound(type === 'error' ? 'error' : 'success');
+                
+                setTimeout(() => {
+                    notif.style.opacity = '0';
+                    setTimeout(() => notif.remove(), 300);
+                }, 2500);
+            },
+            
+            // Add message to chat
+            addMessage(text) {
+                const messages = document.getElementById('messages');
+                if (!messages) return;
+                
+                const msg = document.createElement('div');
+                msg.textContent = `${new Date().toLocaleTimeString()}: ${text}`;
+                messages.appendChild(msg);
                 messages.scrollTop = messages.scrollHeight;
                 
-                // Limit message history
+                // Keep only last 50 messages
                 while (messages.children.length > 50) {
-                    messages.removeChild(messages.firstChild);
+                    messages.firstChild.remove();
                 }
-            }
-            console.log("Message: " + text);
-        }
-        
-        function debounce(func, wait) {
-            let timeout;
-            return function executedFunction(...args) {
-                const later = () => {
-                    clearTimeout(timeout);
-                    func(...args);
-                };
-                clearTimeout(timeout);
-                timeout = setTimeout(later, wait);
-            };
-        }
-        
-        // Socket connection
-        function testSocket() {
-            addMessage("Connecting to server...");
+            },
             
-            if (socket) {
-                socket.disconnect();
-            }
-            
-            try {
-                socket = io({
+            // Connect to server
+            connect() {
+                this.addMessage("Connecting to server...");
+                
+                if (this.state.socket) {
+                    this.state.socket.disconnect();
+                }
+                
+                this.state.socket = io({
                     transports: ['websocket', 'polling'],
-                    timeout: 5000,
-                    forceNew: true
+                    timeout: 5000
                 });
                 
+                this.setupSocketHandlers();
+            },
+            
+            // Setup socket event handlers
+            setupSocketHandlers() {
+                const socket = this.state.socket;
+                
                 socket.on('connect', () => {
-                    addMessage("✅ Connected to server!");
+                    this.addMessage("✅ Connected!");
                     document.getElementById('connectionStatus').textContent = "Status: Connected";
                     document.getElementById('joinBtn').disabled = false;
+                    this.notify("Connected to server!", "success");
                 });
                 
                 socket.on('disconnect', () => {
-                    addMessage("❌ Disconnected from server");
+                    this.addMessage("❌ Disconnected");
                     document.getElementById('connectionStatus').textContent = "Status: Disconnected";
                     document.getElementById('joinBtn').disabled = true;
+                    this.notify("Disconnected", "error");
                 });
                 
                 socket.on('playerJoined', (data) => {
-                    gameState.gameCode = data.gameCode;
-                    gameState.players = data.players;
-                    gameState.aiPlayers = data.aiPlayers || [];
-                    
-                    document.getElementById('displayCode').textContent = data.gameCode;
-                    document.getElementById('playerCount').textContent = data.players.length;
-                    
-                    const playersDiv = document.getElementById('currentPlayers');
-                    playersDiv.innerHTML = '<h4>Current Players:</h4>';
-                    data.players.forEach(player => {
-                        const div = document.createElement('div');
-                        div.className = 'player';
-                        if (data.aiPlayers && data.aiPlayers.includes(player)) {
-                            div.classList.add('ai-player');
-                        }
-                        div.innerHTML = `<span>${player} ${data.aiPlayers && data.aiPlayers.includes(player) ? '🤖' : ''}</span>`;
-                        playersDiv.appendChild(div);
-                    });
-                    
-                    document.getElementById('waitingArea').style.display = 'block';
-                    
-                    if (data.isHost) {
-                        document.getElementById('startBtn').style.display = 'block';
-                        addMessage("You are the host! Click Start Game when ready.");
-                        
-                        const aiCount = data.aiPlayers ? data.aiPlayers.length : 0;
-                        if (aiCount > 0) {
-                            addMessage(`🤖 Added ${aiCount} AI player${aiCount === 1 ? '' : 's'} to the game!`);
-                        }
-                    }
+                    this.handlePlayerJoined(data);
                 });
                 
                 socket.on('gameStarted', (data) => {
-                    addMessage("🎮 Game started!");
-                    updateGameState(data);
-                    showGameBoard();
+                    this.handleGameStarted(data);
                 });
                 
                 socket.on('gameUpdate', (data) => {
-                    updateGameState(data);
-                    updateGameUI();
-                    
-                    if (data.hand && data.hand.length < gameState.hand.length) {
-                        gameState.selectedCards = [];
-                        if (layoffMode) {
-                            cancelLayoff();
-                        }
-                    }
+                    this.updateGameState(data);
                 });
                 
                 socket.on('gameMessage', (data) => {
-                    addMessage(data.message);
-                });
-                
-                socket.on('gameComplete', (data) => {
-                    showFinalResults(data);
-                    disableAllGameActions();
-                    addMessage(`🏆 GAME COMPLETE! Winner: ${data.winner} with ${data.winnerScore} points!`);
+                    this.addMessage(data.message);
+                    if (data.message.includes('won')) this.playSound('success');
                 });
                 
                 socket.on('error', (data) => {
-                    addMessage("❌ Error: " + data.message);
+                    this.notify(data.message, "error");
+                });
+            },
+            
+            // Handle player joined
+            handlePlayerJoined(data) {
+                this.state.gameCode = data.gameCode;
+                this.state.players = data.players;
+                
+                document.getElementById('displayCode').textContent = data.gameCode;
+                document.getElementById('playerCount').textContent = data.players.length;
+                document.getElementById('waitingArea').style.display = 'block';
+                
+                const playersDiv = document.getElementById('currentPlayers');
+                playersDiv.innerHTML = '<h4>Players:</h4>';
+                data.players.forEach(player => {
+                    const div = document.createElement('div');
+                    div.textContent = player + (data.aiPlayers?.includes(player) ? ' 🤖' : '');
+                    playersDiv.appendChild(div);
                 });
                 
-            } catch (error) {
-                addMessage("❌ Connection failed: " + error);
-            }
-        }
-        
-        function joinGame() {
-            const playerName = document.getElementById('playerName').value.trim();
-            const gameCode = document.getElementById('gameCode').value.trim();
-            const aiCount = parseInt(document.getElementById('aiCount').value) || 0;
-            
-            if (!playerName) {
-                addMessage("❌ Please enter your name");
-                return;
-            }
-            
-            if (!socket || !socket.connected) {
-                addMessage("❌ Please connect to server first");
-                return;
-            }
-            
-            gameState.myName = playerName;
-            addMessage("Joining game as " + playerName + "...");
-            
-            if (aiCount > 0 && !gameCode) {
-                addMessage(`Adding ${aiCount} AI player${aiCount === 1 ? '' : 's'}...`);
-            }
-            
-            socket.emit('joinGame', {
-                playerName: playerName,
-                gameCode: gameCode,
-                aiCount: aiCount
-            });
-        }
-        
-        function startGame() {
-            if (!socket) return;
-            addMessage("Starting game...");
-            socket.emit('startGame');
-        }
-        
-        function updateGameState(data) {
-            const oldHandLength = gameState.hand.length;
-            
-            Object.assign(gameState, {
-                gameCode: data.gameCode,
-                players: data.players,
-                aiPlayers: data.aiPlayers || [],
-                currentPlayer: data.currentPlayer,
-                round: data.currentRound,
-                melds: data.melds || [],
-                allPlayerMelds: data.allPlayerMelds || {},
-                handCounts: data.handCounts || {},
-                buysRemaining: data.buysRemaining || 0,
-                discardTop: data.discardTop,
-                isMyTurn: data.currentPlayer === gameState.myName,
-                hasDrawn: data.turnState ? data.turnState.hasDrawn : false,
-                scores: data.scores || {}
-            });
-            
-            if (data.roundRequirements) {
-                gameState.roundRequirements = data.roundRequirements;
-            }
-            
-            // Handle hand updates
-            if (data.hand) {
-                const newHandLength = data.hand.length;
-                
-                if (Math.abs(newHandLength - oldHandLength) > 1) {
-                    gameState.hand = data.hand;
-                    localCardOrder = data.hand.map((_, index) => index);
-                    gameState.selectedCards = [];
-                } else if (newHandLength === oldHandLength && !pendingReorder) {
-                    gameState.hand = data.hand;
-                    if (localCardOrder.length !== newHandLength) {
-                        localCardOrder = data.hand.map((_, index) => index);
-                    }
-                } else {
-                    gameState.hand = data.hand;
-                    if (newHandLength > oldHandLength) {
-                        for (let i = localCardOrder.length; i < newHandLength; i++) {
-                            localCardOrder.push(i);
-                        }
-                    } else if (newHandLength < oldHandLength) {
-                        localCardOrder = localCardOrder.filter(index => index < newHandLength);
-                    }
+                if (data.isHost) {
+                    document.getElementById('startBtn').style.display = 'block';
                 }
-            }
+            },
             
-            pendingReorder = false;
-        }
-        
-        function showGameBoard() {
-            document.getElementById('gameSetup').style.display = 'none';
-            document.getElementById('gameBoard').style.display = 'grid';
-            document.getElementById('scoreboardOverlay').style.display = 'block';
-            updateGameUI();
-            addKeyboardShortcuts();
-        }
-        
-        const debouncedUpdateUI = debounce(() => {
-            try {
-                updateHand();
-                updatePlayers();
-                updateDiscardPile();
-                updateMelds();
-                updateAllPlayerMelds();
-                updateQuickReference();
-                updateButtons();
-                updateOverlayScoreboard();
-            } catch (error) {
-                console.error("Error in updateGameUI:", error);
-                addMessage("Display update error: " + error.message);
-            }
-        }, 50);
-        
-        function updateGameUI() {
-            const currentRoundEl = document.getElementById('currentRound');
-            const buysLeftEl = document.getElementById('buysLeft');
-            const requiredMeldsEl = document.getElementById('requiredMelds');
-            const roundDescriptionEl = document.getElementById('roundDescription');
+            // Handle game started
+            handleGameStarted(data) {
+                this.addMessage("🎮 Game started!");
+                this.notify("Game Started!", "success");
+                this.updateGameState(data);
+                document.getElementById('gameSetup').style.display = 'none';
+                document.getElementById('gameBoard').style.display = 'grid';
+            },
             
-            if (currentRoundEl) currentRoundEl.textContent = gameState.round;
-            if (buysLeftEl) buysLeftEl.textContent = gameState.buysRemaining;
-            
-            if (gameState.roundRequirements) {
-                if (requiredMeldsEl) requiredMeldsEl.textContent = gameState.roundRequirements.melds;
-                if (roundDescriptionEl) roundDescriptionEl.textContent = gameState.roundRequirements.description;
-            }
-            
-            debouncedUpdateUI();
-        }
-        
-        function updateHand() {
-            const handDiv = document.getElementById('playerHand');
-            const handCount = document.getElementById('handCount');
-            
-            if (!handDiv || !handCount) return;
-            
-            handDiv.innerHTML = '';
-            handCount.textContent = gameState.hand.length;
-            
-            if (localCardOrder.length !== gameState.hand.length) {
-                localCardOrder = gameState.hand.map((_, index) => index);
-            }
-            
-            const cardsContainer = document.createElement('div');
-            cardsContainer.className = 'cards-container';
-            
-            const firstInsertionPoint = createInsertionPoint(0);
-            cardsContainer.appendChild(firstInsertionPoint);
-            
-            localCardOrder.forEach((originalIndex, displayPosition) => {
-                if (originalIndex >= gameState.hand.length) return;
-                
-                const card = gameState.hand[originalIndex];
-                const cardDiv = createCardElement(card, originalIndex, displayPosition);
-                cardsContainer.appendChild(cardDiv);
-                
-                const insertionPoint = createInsertionPoint(displayPosition + 1);
-                cardsContainer.appendChild(insertionPoint);
-            });
-            
-            handDiv.appendChild(cardsContainer);
-        }
-        
-        function createCardElement(card, originalIndex, displayPosition) {
-            const cardDiv = document.createElement('div');
-            cardDiv.className = `card ${card.color}`;
-            cardDiv.draggable = !layoffMode;
-            cardDiv.dataset.originalIndex = originalIndex;
-            cardDiv.dataset.displayPosition = displayPosition;
-            
-            if (gameState.selectedCards.includes(originalIndex)) {
-                cardDiv.classList.add('selected');
-            }
-            
-            if (layoffMode && layoffSelectedCard === originalIndex) {
-                cardDiv.classList.add('layoff-selected');
-            }
-            
-            cardDiv.innerHTML = `
-                <div>${card.display}</div>
-                <div style="transform: rotate(180deg)">${card.display}</div>
-            `;
-            
-            cardDiv.onclick = () => {
-                if (layoffMode) {
-                    selectCardForLayoff(originalIndex);
-                } else {
-                    toggleCardSelection(originalIndex);
+            // Update game state
+            updateGameState(data) {
+                Object.assign(this.state, data);
+                if (data.hand) {
+                    this.state.cardOrder = data.hand.map((_, i) => i);
                 }
-            };
+                this.updateUI();
+            },
             
-            if (!layoffMode) {
-                cardDiv.ondragstart = (e) => handleDragStart(e, displayPosition, originalIndex);
-                cardDiv.ondragend = (e) => handleDragEnd(e);
-            }
-            
-            return cardDiv;
-        }
-        
-        // Lay-off functionality
-        function enterLayoffMode() {
-            if (!gameState.isMyTurn || gameState.selectedCards.length > 0) {
-                addMessage("❌ Clear selections and ensure it's your turn to lay off cards");
-                return;
-            }
-            
-            let hasMelds = false;
-            Object.values(gameState.allPlayerMelds).forEach(playerMelds => {
-                if (playerMelds.length > 0) hasMelds = true;
-            });
-            
-            if (!hasMelds) {
-                addMessage("❌ No melds on table to lay off to yet");
-                return;
-            }
-            
-            layoffMode = true;
-            layoffSelectedCard = null;
-            gameState.selectedCards = [];
-            
-            document.getElementById('layoffInstructions').style.display = 'block';
-            document.getElementById('handArea').classList.add('layoff-mode');
-            document.getElementById('layoffBtn').textContent = 'Cancel Lay-off';
-            
-            updateHand();
-            highlightLayoffTargets();
-            addMessage("🎯 Lay-off mode activated! Select a card from your hand, then click 'Lay Off' on a target meld.");
-        }
-        
-        function cancelLayoff() {
-            layoffMode = false;
-            layoffSelectedCard = null;
-            
-            document.getElementById('layoffInstructions').style.display = 'none';
-            document.getElementById('handArea').classList.remove('layoff-mode');
-            document.getElementById('layoffBtn').textContent = 'Lay Off Card';
-            
-            clearLayoffTargets();
-            updateHand();
-            updateButtons();
-            addMessage("Lay-off mode cancelled");
-        }
-        
-        function selectCardForLayoff(cardIndex) {
-            if (!layoffMode) return;
-            
-            layoffSelectedCard = cardIndex;
-            updateHand();
-            addMessage(`Selected ${gameState.hand[cardIndex].display} for lay-off. Now click 'Lay Off' on a target meld.`);
-        }
-        
-        function highlightLayoffTargets() {
-            document.querySelectorAll('.meld-display').forEach(meldDiv => {
-                meldDiv.classList.add('layoff-target');
-            });
-        }
-        
-        function clearLayoffTargets() {
-            document.querySelectorAll('.meld-display').forEach(meldDiv => {
-                meldDiv.classList.remove('layoff-target');
-            });
-        }
-        
-        function layOffToMeld(targetPlayer, meldIndex) {
-            if (!layoffMode || layoffSelectedCard === null) {
-                addMessage("❌ Select a card for lay-off first");
-                return;
-            }
-            
-            socket.emit('layOffCard', {
-                cardIndex: layoffSelectedCard,
-                targetPlayer: targetPlayer,
-                meldIndex: meldIndex
-            });
-            
-            cancelLayoff();
-        }
-        
-        // Card organization
-        function createInsertionPoint(insertPosition) {
-            const insertionPoint = document.createElement('div');
-            insertionPoint.className = 'insertion-point';
-            insertionPoint.dataset.insertPosition = insertPosition;
-            
-            if (!layoffMode) {
-                insertionPoint.ondragover = (e) => handleInsertionDragOver(e);
-                insertionPoint.ondrop = (e) => handleInsertionDrop(e, insertPosition);
-                insertionPoint.ondragenter = (e) => handleInsertionDragEnter(e);
-                insertionPoint.ondragleave = (e) => handleInsertionDragLeave(e);
-            }
-            
-            return insertionPoint;
-        }
-        
-        function handleDragStart(e, displayPosition, originalIndex) {
-            draggedCardIndex = displayPosition;
-            draggedOriginalIndex = originalIndex;
-            
-            e.target.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', displayPosition.toString());
-            
-            document.querySelectorAll('.insertion-point').forEach(point => {
-                point.style.background = 'rgba(255, 255, 255, 0.1)';
-                point.style.borderColor = 'rgba(255, 255, 255, 0.3)';
-                point.style.width = '10px';
-            });
-        }
-        
-        function handleInsertionDragOver(e) {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-        }
-        
-        function handleInsertionDragEnter(e) {
-            e.preventDefault();
-            if (e.target.classList.contains('insertion-point')) {
-                e.target.style.borderColor = '#4caf50';
-                e.target.style.background = 'rgba(76, 175, 80, 0.2)';
-                e.target.style.width = '14px';
-            }
-        }
-        
-        function handleInsertionDragLeave(e) {
-            if (e.target.classList.contains('insertion-point')) {
-                e.target.style.borderColor = 'rgba(255, 255, 255, 0.3)';
-                e.target.style.background = 'rgba(255, 255, 255, 0.1)';
-                e.target.style.width = '10px';
-            }
-        }
-        
-        function handleInsertionDrop(e, insertPosition) {
-            e.preventDefault();
-            
-            if (draggedCardIndex === null) return;
-            
-            const movedCardOriginalIndex = localCardOrder[draggedCardIndex];
-            localCardOrder.splice(draggedCardIndex, 1);
-            
-            let adjustedInsertPosition = insertPosition;
-            if (draggedCardIndex < insertPosition) {
-                adjustedInsertPosition = insertPosition - 1;
-            }
-            
-            localCardOrder.splice(adjustedInsertPosition, 0, movedCardOriginalIndex);
-            
-            sendCardReorder();
-            updateHand();
-        }
-        
-        function handleDragEnd(e) {
-            e.target.classList.remove('dragging');
-            draggedCardIndex = null;
-            draggedOriginalIndex = null;
-            
-            document.querySelectorAll('.insertion-point').forEach(point => {
-                point.style.background = 'transparent';
-                point.style.borderColor = 'transparent';
-                point.style.width = '6px';
-            });
-        }
-        
-        function sendCardReorder() {
-            if (!socket || !socket.connected) return;
-            
-            pendingReorder = true;
-            socket.emit('reorderCards', {
-                cardOrder: [...localCardOrder]
-            });
-        }
-        
-        function autoSortBySuit() {
-            if (!gameState.hand.length || layoffMode) return;
-            
-            const suitOrder = { 'hearts': 0, 'diamonds': 1, 'clubs': 2, 'spades': 3 };
-            const rankOrder = { 'A': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13 };
-            
-            localCardOrder.sort((aIndex, bIndex) => {
-                const cardA = gameState.hand[aIndex];
-                const cardB = gameState.hand[bIndex];
+            // Update UI
+            updateUI() {
+                this.updateHand();
+                this.updatePlayers();
+                this.updateMelds();
+                this.updateButtons();
                 
-                const suitCompare = suitOrder[cardA.suit] - suitOrder[cardB.suit];
-                if (suitCompare !== 0) return suitCompare;
+                document.getElementById('currentRound').textContent = this.state.round || 1;
+                document.getElementById('handCount').textContent = this.state.hand?.length || 0;
                 
-                return rankOrder[cardA.rank] - rankOrder[cardB.rank];
-            });
+                if (this.state.discardTop) {
+                    const color = this.state.discardTop.color === 'red' ? '#d32f2f' : '#1976d2';
+                    document.getElementById('discardDisplay').innerHTML = 
+                        `<span style="color: ${color}; font-weight: bold;">${this.state.discardTop.display}</span><br><small>Pick Up</small>`;
+                } else {
+                    document.getElementById('discardDisplay').innerHTML = 'No Card<br><small>Pick Up</small>';
+                }
+            },
             
-            sendCardReorder();
-            updateHand();
-            addMessage('Cards sorted by suit');
-        }
-        
-        function autoSortByRank() {
-            if (!gameState.hand.length || layoffMode) return;
-            
-            const rankOrder = { 'A': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13 };
-            const suitOrder = { 'hearts': 0, 'diamonds': 1, 'clubs': 2, 'spades': 3 };
-            
-            localCardOrder.sort((aIndex, bIndex) => {
-                const cardA = gameState.hand[aIndex];
-                const cardB = gameState.hand[bIndex];
+            // Update hand display
+            updateHand() {
+                const container = document.getElementById('playerHand');
+                if (!container) return;
                 
-                const rankCompare = rankOrder[cardA.rank] - rankOrder[cardB.rank];
-                if (rankCompare !== 0) return rankCompare;
-                
-                return suitOrder[cardA.suit] - suitOrder[cardB.suit];
-            });
-            
-            sendCardReorder();
-            updateHand();
-            addMessage('Cards sorted by rank');
-        }
-        
-        function addKeyboardShortcuts() {
-            document.addEventListener('keydown', function(e) {
-                if (layoffMode) {
-                    if (e.key === 'Escape') {
-                        cancelLayoff();
+                container.innerHTML = '';
+                this.state.cardOrder.forEach(idx => {
+                    if (idx >= this.state.hand.length) return;
+                    
+                    const card = this.state.hand[idx];
+                    const cardEl = document.createElement('div');
+                    cardEl.className = `card ${card.color}`;
+                    if (this.state.selectedCards.includes(idx)) {
+                        cardEl.classList.add('selected');
                     }
+                    
+                    cardEl.innerHTML = `<div>${card.display}</div><div style="transform: rotate(180deg)">${card.display}</div>`;
+                    cardEl.onclick = () => this.toggleCard(idx);
+                    
+                    container.appendChild(cardEl);
+                });
+            },
+            
+            // Update players display
+            updatePlayers() {
+                const container = document.getElementById('playersList');
+                if (!container) return;
+                
+                container.innerHTML = '<h4>Players</h4>';
+                this.state.players?.forEach(player => {
+                    const div = document.createElement('div');
+                    div.className = 'player-section';
+                    if (player === this.state.currentPlayer) div.classList.add('current');
+                    div.textContent = player + (player === this.state.currentPlayer ? ' 👑' : '');
+                    container.appendChild(div);
+                });
+            },
+            
+            // Update melds display
+            updateMelds() {
+                const container = document.getElementById('playerMelds');
+                if (!container || !this.state.melds) return;
+                
+                if (this.state.melds.length === 0) {
+                    container.innerHTML = 'No melds yet';
                     return;
                 }
                 
-                if (!gameState.selectedCards.length || gameState.selectedCards.length !== 1) return;
-                
-                const selectedIndex = gameState.selectedCards[0];
-                const displayPosition = localCardOrder.indexOf(selectedIndex);
-                
-                if (e.key === 'ArrowLeft' && displayPosition > 0) {
-                    e.preventDefault();
-                    const temp = localCardOrder[displayPosition];
-                    localCardOrder[displayPosition] = localCardOrder[displayPosition - 1];
-                    localCardOrder[displayPosition - 1] = temp;
-                    
-                    sendCardReorder();
-                    updateHand();
-                } else if (e.key === 'ArrowRight' && displayPosition < localCardOrder.length - 1) {
-                    e.preventDefault();
-                    const temp = localCardOrder[displayPosition];
-                    localCardOrder[displayPosition] = localCardOrder[displayPosition + 1];
-                    localCardOrder[displayPosition + 1] = temp;
-                    
-                    sendCardReorder();
-                    updateHand();
-                }
-            });
-        }
-        
-        // UI Updates
-        function updatePlayers() {
-            const playersDiv = document.getElementById('playersList');
-            if (!playersDiv) return;
+                container.innerHTML = '';
+                this.state.melds.forEach(meld => {
+                    const div = document.createElement('div');
+                    div.className = 'meld-display';
+                    div.innerHTML = `<strong>${meld.type}:</strong> ${meld.cards.map(c => 
+                        `<span style="color: ${c.color === 'red' ? '#d32f2f' : '#1976d2'}">${c.display}</span>`
+                    ).join(' ')}`;
+                    container.appendChild(div);
+                });
+            },
             
-            playersDiv.innerHTML = '';
+            // Update buttons
+            updateButtons() {
+                const canAct = this.state.isMyTurn && !this.state.layoffMode;
+                document.getElementById('setBtn').disabled = !canAct || this.state.selectedCards.length < 3;
+                document.getElementById('runBtn').disabled = !canAct || this.state.selectedCards.length < 4;
+                document.getElementById('discardBtn').disabled = !canAct || !this.state.hasDrawn || this.state.selectedCards.length !== 1;
+            },
             
-            gameState.players.forEach(player => {
-                const playerDiv = document.createElement('div');
-                playerDiv.className = 'player';
+            // Game actions
+            joinGame() {
+                const name = document.getElementById('playerName').value.trim();
+                const code = document.getElementById('gameCode').value.trim();
+                const aiCount = parseInt(document.getElementById('aiCount').value) || 0;
                 
-                if (player === gameState.currentPlayer) {
-                    playerDiv.classList.add('current-turn');
+                if (!name) {
+                    this.notify("Please enter your name", "error");
+                    return;
                 }
                 
-                if (gameState.aiPlayers.includes(player)) {
-                    playerDiv.classList.add('ai-player');
-                }
-                
-                const handSize = gameState.handCounts[player] || (player === gameState.myName ? gameState.hand.length : '?');
-                const meldCount = gameState.allPlayerMelds[player]?.length || 0;
-                const aiIndicator = gameState.aiPlayers.includes(player) ? ' 🤖' : '';
-                
-                playerDiv.innerHTML = `
-                    <div>
-                        <span style="font-weight: bold;">${player}${player === gameState.currentPlayer ? ' 👑' : ''}${aiIndicator}</span>
-                        <div style="font-size: 11px; color: rgba(255,255,255,0.8);">
-                            ${meldCount} meld${meldCount === 1 ? '' : 's'} | ${handSize} cards
-                        </div>
-                    </div>
-                    <div style="text-align: right;">
-                        ${player === gameState.myName ? '(You)' : ''}
-                    </div>
-                `;
-                playersDiv.appendChild(playerDiv);
-            });
-        }
-        
-        function updateDiscardPile() {
-            const discardDiv = document.getElementById('discardDisplay');
-            if (!discardDiv) return;
+                this.state.myName = name;
+                this.state.socket.emit('joinGame', { playerName: name, gameCode: code, aiCount });
+            },
             
-            if (gameState.discardTop) {
-                discardDiv.innerHTML = `
-                    <div style="
-                        background: white; 
-                        color: ${gameState.discardTop.color === 'red' ? '#d32f2f' : '#1976d2'}; 
-                        padding: 6px; 
-                        border-radius: 4px; 
-                        font-weight: bold;
-                        border: 2px solid #333;
-                        min-height: 35px;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                    ">
-                        ${gameState.discardTop.display}
-                    </div>
-                    <small style="margin-top: 4px; display: block;">Pick Up</small>
-                `;
-            } else {
-                discardDiv.innerHTML = '<div style="color: white;">No Card</div><small>Pick Up</small>';
-            }
+            startGame() {
+                this.state.socket.emit('startGame');
+            },
             
-            const discardPile = document.getElementById('discardPile');
-            if (discardPile) {
-                if (gameState.isMyTurn && !gameState.hasDrawn && gameState.discardTop) {
-                    discardPile.style.opacity = '1';
-                    discardPile.style.pointerEvents = 'auto';
+            toggleCard(index) {
+                const idx = this.state.selectedCards.indexOf(index);
+                if (idx > -1) {
+                    this.state.selectedCards.splice(idx, 1);
                 } else {
-                    discardPile.style.opacity = '0.5';
-                    discardPile.style.pointerEvents = 'none';
+                    this.state.selectedCards.push(index);
                 }
-            }
-        }
-        
-        function updateMelds() {
-            const meldsDiv = document.getElementById('playerMelds');
-            if (!meldsDiv) return;
+                this.playSound('click');
+                this.updateUI();
+            },
             
-            if (gameState.melds.length === 0) {
-                meldsDiv.innerHTML = '<p style="color: rgba(255,255,255,0.6);">No melds yet</p>';
-                return;
-            }
+            drawCard() {
+                if (!this.state.isMyTurn || this.state.hasDrawn) return;
+                this.state.socket.emit('drawCard');
+                this.playSound('click');
+            },
             
-            meldsDiv.innerHTML = '';
-            gameState.melds.forEach((meld) => {
-                const meldDiv = document.createElement('div');
-                meldDiv.style.cssText = 'margin: 8px 0; padding: 8px; background: rgba(255,255,255,0.1); border-radius: 6px;';
+            pickUpDiscard() {
+                if (!this.state.isMyTurn || this.state.hasDrawn) return;
+                this.state.socket.emit('pickUpDiscard');
+                this.playSound('click');
+            },
+            
+            makeSet() {
+                if (this.state.selectedCards.length < 3) return;
+                this.state.socket.emit('makeMeld', { 
+                    cardIndices: this.state.selectedCards, 
+                    meldType: 'set' 
+                });
+                this.state.selectedCards = [];
+            },
+            
+            makeRun() {
+                if (this.state.selectedCards.length < 4) return;
+                this.state.socket.emit('makeMeld', { 
+                    cardIndices: this.state.selectedCards, 
+                    meldType: 'run' 
+                });
+                this.state.selectedCards = [];
+            },
+            
+            discardCard() {
+                if (this.state.selectedCards.length !== 1) return;
+                this.state.socket.emit('discardCard', { 
+                    cardIndex: this.state.selectedCards[0] 
+                });
+                this.state.selectedCards = [];
+            },
+            
+            toggleLayoff() {
+                this.state.layoffMode = !this.state.layoffMode;
+                document.getElementById('layoffBtn').textContent = 
+                    this.state.layoffMode ? 'Cancel Layoff' : 'Lay Off';
+                this.updateUI();
+            },
+            
+            sortBySuit() {
+                const suitOrder = { 'hearts': 0, 'diamonds': 1, 'clubs': 2, 'spades': 3 };
+                const rankOrder = { 'A': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13 };
                 
-                let meldHTML = `<strong>${meld.type.toUpperCase()}:</strong> `;
-                meld.cards.forEach(card => {
-                    meldHTML += `<span style="color: ${card.color === 'red' ? '#d32f2f' : '#1976d2'}; margin-right: 4px;">${card.display}</span>`;
+                this.state.cardOrder.sort((a, b) => {
+                    const cardA = this.state.hand[a];
+                    const cardB = this.state.hand[b];
+                    const suitDiff = suitOrder[cardA.suit] - suitOrder[cardB.suit];
+                    return suitDiff || rankOrder[cardA.rank] - rankOrder[cardB.rank];
                 });
                 
-                meldDiv.innerHTML = meldHTML;
-                meldsDiv.appendChild(meldDiv);
-            });
-        }
-        
-        function updateAllPlayerMelds() {
-            const allMeldsDiv = document.getElementById('allPlayerMelds');
-            if (!allMeldsDiv) return;
+                this.updateHand();
+                this.playSound('click');
+            },
             
-            let totalMelds = 0;
-            Object.values(gameState.allPlayerMelds).forEach(playerMelds => {
-                totalMelds += playerMelds.length;
-            });
-            
-            if (totalMelds === 0) {
-                allMeldsDiv.innerHTML = '<p class="no-melds-message">No melds on the table yet</p>';
-                return;
-            }
-            
-            allMeldsDiv.innerHTML = '';
-            
-            const requirements = gameState.roundRequirements;
-            
-            gameState.players.forEach(playerName => {
-                const playerMelds = gameState.allPlayerMelds[playerName] || [];
-                const handCount = gameState.handCounts[playerName] || 0;
+            sortByRank() {
+                const rankOrder = { 'A': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13 };
+                const suitOrder = { 'hearts': 0, 'diamonds': 1, 'clubs': 2, 'spades': 3 };
                 
-                if (playerMelds.length > 0) {
-                    const playerSection = createPlayerMeldsSection(playerName, playerMelds, handCount, requirements);
-                    allMeldsDiv.appendChild(playerSection);
-                }
-            });
-        }
-        
-        function createPlayerMeldsSection(playerName, playerMelds, handCount, requirements) {
-            const playerSection = document.createElement('div');
-            playerSection.className = 'player-melds-section';
-            
-            let sets = 0;
-            let runs = 0;
-            playerMelds.forEach(meld => {
-                if (meld.type === 'set' && meld.cards.length >= requirements.minSetSize) sets++;
-                if (meld.type === 'run' && meld.cards.length >= requirements.minRunSize) runs++;
-            });
-            
-            const meetsRequirements = sets >= requirements.sets && runs >= requirements.runs;
-            const canGoOut = meetsRequirements && handCount <= 1;
-            const closeToWinning = meetsRequirements && handCount <= 3;
-            
-            if (playerName === gameState.currentPlayer) playerSection.classList.add('current-player');
-            if (playerName === gameState.myName) playerSection.classList.add('my-melds');
-            if (gameState.aiPlayers.includes(playerName)) playerSection.classList.add('ai-player');
-            if (canGoOut) playerSection.classList.add('can-go-out');
-            else if (closeToWinning) playerSection.classList.add('close-to-winning');
-            
-            const header = document.createElement('div');
-            header.className = 'player-melds-header';
-            
-            const statusBadge = meetsRequirements ? '<span class="requirements-met-badge">✓ Ready</span>' : '';
-            const aiIndicator = gameState.aiPlayers.includes(playerName) ? ' 🤖' : '';
-            
-            header.innerHTML = `
-                <h5 class="${gameState.aiPlayers.includes(playerName) ? 'ai-player-name' : ''}">
-                    ${playerName}${playerName === gameState.currentPlayer ? ' 👑' : ''}${aiIndicator}
-                    ${statusBadge}
-                </h5>
-                <div>
-                    <span class="hand-count-badge">${handCount} cards left</span>
-                    <button class="melds-toggle" onclick="togglePlayerMelds('${playerName}')">
-                        ${playerMelds.length} meld${playerMelds.length === 1 ? '' : 's'}
-                    </button>
-                </div>
-            `;
-            playerSection.appendChild(header);
-            
-            const meldsContainer = document.createElement('div');
-            meldsContainer.className = 'melds-container';
-            meldsContainer.id = `melds-${playerName}`;
-            
-            playerMelds.forEach((meld, meldIndex) => {
-                const meldDiv = document.createElement('div');
-                meldDiv.className = 'meld-display';
-                
-                let meldHTML = `<span class="meld-type-label">${meld.type} (${meld.cards.length})</span>`;
-                meld.cards.forEach(card => {
-                    meldHTML += `<span class="meld-card ${card.color}" title="${card.display}">${card.display}</span>`;
+                this.state.cardOrder.sort((a, b) => {
+                    const cardA = this.state.hand[a];
+                    const cardB = this.state.hand[b];
+                    const rankDiff = rankOrder[cardA.rank] - rankOrder[cardB.rank];
+                    return rankDiff || suitOrder[cardA.suit] - suitOrder[cardB.suit];
                 });
                 
-                if (layoffMode && gameState.isMyTurn && layoffSelectedCard !== null) {
-                    meldHTML += `
-                        <div class="layoff-buttons">
-                            <button class="btn-layoff" onclick="layOffToMeld('${playerName}', ${meldIndex})" title="Lay off to this meld">
-                                Lay Off
-                            </button>
-                        </div>
-                    `;
-                }
-                
-                meldDiv.innerHTML = meldHTML;
-                meldsContainer.appendChild(meldDiv);
-            });
-            
-            playerSection.appendChild(meldsContainer);
-            return playerSection;
-        }
+                this.updateHand();
+                this.playSound('click');
+            }
+        };
         
-        function togglePlayerMelds(playerName) {
-            const meldsContainer = document.getElementById(`melds-${playerName}`);
-            const playerSection = meldsContainer?.parentElement;
-            
-            if (playerSection) {
-                playerSection.classList.toggle('melds-collapsed');
-                
-                const toggleBtn = playerSection.querySelector('.melds-toggle');
-                if (toggleBtn) {
-                    const isCollapsed = playerSection.classList.contains('melds-collapsed');
-                    const meldCount = gameState.allPlayerMelds[playerName]?.length || 0;
-                    toggleBtn.textContent = isCollapsed ? 
-                        `Show ${meldCount}` : 
-                        `${meldCount} meld${meldCount === 1 ? '' : 's'}`;
-                }
-            }
-        }
-        
-        function toggleQuickReference() {
-            const quickRef = document.getElementById('quickReference');
-            const toggle = document.getElementById('refToggle');
-            
-            if (quickRef.classList.contains('quick-ref-collapsed')) {
-                quickRef.classList.remove('quick-ref-collapsed');
-                toggle.textContent = '▼';
-            } else {
-                quickRef.classList.add('quick-ref-collapsed');
-                toggle.textContent = '▶';
-            }
-        }
-        
-        function updateQuickReference() {
-            if (!gameState.roundRequirements) return;
-            
-            const goalEl = document.getElementById('currentGoal');
-            if (goalEl) {
-                goalEl.textContent = gameState.roundRequirements.melds;
-            }
-            
-            const myMelds = gameState.melds || [];
-            let mySets = 0;
-            let myRuns = 0;
-            
-            myMelds.forEach(meld => {
-                if (meld.type === 'set' && meld.cards.length >= gameState.roundRequirements.minSetSize) mySets++;
-                if (meld.type === 'run' && meld.cards.length >= gameState.roundRequirements.minRunSize) myRuns++;
-            });
-            
-            const meetsRequirements = mySets >= gameState.roundRequirements.sets && myRuns >= gameState.roundRequirements.runs;
-            const canGoOut = meetsRequirements && gameState.hand.length <= 1;
-            
-            const reqMetEl = document.getElementById('reqMet');
-            const canGoOutEl = document.getElementById('canGoOut');
-            
-            if (reqMetEl) {
-                reqMetEl.textContent = meetsRequirements ? '✅' : '❌';
-                reqMetEl.title = `Need ${gameState.roundRequirements.sets} sets, ${gameState.roundRequirements.runs} runs. Have ${mySets} sets, ${myRuns} runs`;
-            }
-            
-            if (canGoOutEl) {
-                canGoOutEl.textContent = canGoOut ? '🎯' : '❌';
-                canGoOutEl.title = canGoOut ? 'You can go out!' : 
-                                  !meetsRequirements ? 'Complete round requirements first' : 
-                                  'Need to discard down to 0 cards';
-            }
-            
-            updatePlayerAlerts();
-        }
-        
-        function updatePlayerAlerts() {
-            const alertBox = document.getElementById('nextPlayerAlert');
-            if (!alertBox || !gameState.allPlayerMelds || !gameState.handCounts) return;
-            
-            const dangerousPlayers = [];
-            const requirements = gameState.roundRequirements;
-            
-            gameState.players.forEach(player => {
-                if (player === gameState.myName) return;
-                
-                const melds = gameState.allPlayerMelds[player] || [];
-                const handCount = gameState.handCounts[player] || 0;
-                
-                let sets = 0;
-                let runs = 0;
-                
-                melds.forEach(meld => {
-                    if (meld.type === 'set' && meld.cards.length >= requirements.minSetSize) sets++;
-                    if (meld.type === 'run' && meld.cards.length >= requirements.minRunSize) runs++;
-                });
-                
-                const meetsRequirements = sets >= requirements.sets && runs >= requirements.runs;
-                const canGoOut = meetsRequirements && handCount <= 1;
-                const closeToWinning = meetsRequirements && handCount <= 3;
-                
-                const aiIndicator = gameState.aiPlayers.includes(player) ? ' 🤖' : '';
-                
-                if (canGoOut) {
-                    dangerousPlayers.push({
-                        name: player + aiIndicator,
-                        status: 'CAN GO OUT!',
-                        level: 'danger'
-                    });
-                } else if (closeToWinning) {
-                    dangerousPlayers.push({
-                        name: player + aiIndicator,
-                        status: `${handCount} cards left`,
-                        level: 'warning'
-                    });
-                }
-            });
-            
-            if (dangerousPlayers.length === 0) {
-                alertBox.innerHTML = '<span style="color: #4caf50;">All players building melds</span>';
-            } else {
-                alertBox.innerHTML = '';
-                dangerousPlayers.forEach(player => {
-                    const alertDiv = document.createElement('div');
-                    alertDiv.className = player.level === 'danger' ? 'danger-alert' : '';
-                    alertDiv.innerHTML = `⚠️ ${player.name}: ${player.status}`;
-                    alertBox.appendChild(alertDiv);
-                });
-            }
-        }
-        
-        function updateButtons() {
-            const { isMyTurn, hasDrawn, selectedCards, buysRemaining, discardTop, roundRequirements, melds } = gameState;
-            const hasSelected = selectedCards.length > 0;
-            const canBuy = buysRemaining > 0 && !isMyTurn && discardTop;
-
-            // Check if the player has met their meld requirements for the current round
-            let meetsRequirements = false;
-            if (roundRequirements && melds) {
-                let setsCount = 0;
-                let runsCount = 0;
-                melds.forEach(meld => {
-                    if (meld.type === 'set') setsCount++;
-                    if (meld.type === 'run') runsCount++;
-                });
-                meetsRequirements = setsCount >= roundRequirements.sets && runsCount >= roundRequirements.runs;
-            }
-
-            const buttons = {
-                setBtn: document.getElementById('setBtn'),
-                runBtn: document.getElementById('runBtn'),
-                discardBtn: document.getElementById('discardBtn'),
-                buyBtn: document.getElementById('buyBtn'),
-                layoffBtn: document.getElementById('layoffBtn')
-            };
-
-            if (buttons.setBtn) {
-                buttons.setBtn.disabled = layoffMode || !isMyTurn || !hasSelected || selectedCards.length < 3;
-            }
-
-            if (buttons.runBtn) {
-                buttons.runBtn.disabled = layoffMode || !isMyTurn || !hasSelected || selectedCards.length < 4;
-            }
-
-            if (buttons.discardBtn) {
-                const canDiscard = isMyTurn && hasDrawn && selectedCards.length === 1 && !layoffMode;
-                buttons.discardBtn.disabled = !canDiscard;
-            }
-
-            if (buttons.buyBtn) {
-                buttons.buyBtn.disabled = layoffMode || !canBuy;
-            }
-
-            if (buttons.layoffBtn) {
-                if (layoffMode) {
-                    buttons.layoffBtn.textContent = 'Cancel Lay-off';
-                    buttons.layoffBtn.onclick = cancelLayoff;
-                    buttons.layoffBtn.disabled = false;
-                } else {
-                    buttons.layoffBtn.textContent = 'Lay Off Card';
-                    buttons.layoffBtn.onclick = enterLayoffMode;
-                    // Disable if it's not the player's turn OR if they haven't met their contract
-                    buttons.layoffBtn.disabled = !isMyTurn || !meetsRequirements;
-                }
-            }
-        }
-        
-        function showFinalResults(results) {
-            const modal = document.createElement('div');
-            modal.id = 'finalResultsModal';
-            modal.style.cssText = `
-                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-                background: rgba(0,0,0,0.8); display: flex; justify-content: center;
-                align-items: center; z-index: 1000;
-            `;
-            
-            const modalContent = document.createElement('div');
-            modalContent.style.cssText = `
-                background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-                padding: 25px; border-radius: 12px; border: 3px solid #ffd700;
-                max-width: 500px; color: white; text-align: center;
-                box-shadow: 0 8px 25px rgba(0,0,0,0.5);
-            `;
-            
-            const isWinnerAI = results.playerStats && results.playerStats[results.winner] && results.playerStats[results.winner].isAI;
-            const winnerDisplay = results.winner + (isWinnerAI ? ' 🤖' : '');
-            
-            let htmlContent = `
-                <h1 style="color: #ffd700; margin-bottom: 15px;">🏆 GAME COMPLETE! 🏆</h1>
-                <h2 style="margin-bottom: 20px;">Winner: ${winnerDisplay}</h2>
-                <p style="font-size: 16px; margin-bottom: 20px;">Final Score: ${results.winnerScore} points</p>
-            `;
-            
-            if (isWinnerAI) {
-                htmlContent += `<p style="color: #90caf9; margin-bottom: 15px;">🤖 An AI player won! Great practice game!</p>`;
-            }
-            
-            htmlContent += `
-                <h3 style="margin-bottom: 15px; color: #ffd700;">Final Standings:</h3>
-                <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-            `;
-            
-            results.finalStandings.forEach((player, index) => {
-                const [playerName, score] = player;
-                const stats = results.playerStats[playerName];
-                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-                const aiIndicator = stats.isAI ? ' 🤖' : '';
-                
-                htmlContent += `
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; 
-                                background: ${index === 0 ? 'rgba(255,215,0,0.2)' : stats.isAI ? 'rgba(144,202,249,0.1)' : 'rgba(255,255,255,0.1)'}; 
-                                margin: 4px 0; border-radius: 4px;
-                                ${stats.isAI ? 'border-left: 2px solid #90caf9;' : ''}">
-                        <span style="font-weight: bold;">${medal} ${playerName}${aiIndicator}</span>
-                        <span>${score} pts (${stats.roundsWon} rounds won)</span>
-                    </div>
-                `;
-            });
-            
-            htmlContent += `
-                </div>
-                <button onclick="closeFinalResults()" style="
-                    background: #ff9800; color: white; border: none; padding: 10px 18px; 
-                    border-radius: 6px; cursor: pointer; font-size: 14px;">
-                    Close
-                </button>
-            `;
-            
-            modalContent.innerHTML = htmlContent;
-            modal.appendChild(modalContent);
-            document.body.appendChild(modal);
-        }
-        
-        function closeFinalResults() {
-            const modal = document.getElementById('finalResultsModal');
-            if (modal) modal.remove();
-        }
-        
-        function disableAllGameActions() {
-            const gameButtons = ['setBtn', 'runBtn', 'discardBtn', 'buyBtn', 'layoffBtn'];
-            gameButtons.forEach(btnId => {
-                const btn = document.getElementById(btnId);
-                if (btn) {
-                    btn.disabled = true;
-                    btn.style.opacity = '0.3';
-                }
-            });
-            
-            document.querySelectorAll('.card').forEach(card => {
-                card.style.pointerEvents = 'none';
-                card.style.opacity = '0.7';
-            });
-            
-            document.querySelectorAll('.pile').forEach(pile => {
-                pile.style.pointerEvents = 'none';
-                pile.style.opacity = '0.5';
-            });
-            
-            if (layoffMode) cancelLayoff();
-        }
-        
-        // Game actions
-        function toggleCardSelection(originalIndex) {
-            if (layoffMode) return;
-            
-            const selectedIndex = gameState.selectedCards.indexOf(originalIndex);
-            if (selectedIndex > -1) {
-                gameState.selectedCards.splice(selectedIndex, 1);
-            } else {
-                gameState.selectedCards.push(originalIndex);
-            }
-            updateHand();
-            updateButtons();
-        }
-        
-        function drawCard() {
-            if (!gameState.isMyTurn || gameState.hasDrawn || layoffMode) {
-                addMessage("❌ Not your turn, already drawn, or exit lay-off mode first");
-                return;
-            }
-            
-            addMessage("Drawing from deck...");
-            socket.emit('drawCard');
-        }
-        
-        function pickUpDiscard() {
-            if (!gameState.isMyTurn || gameState.hasDrawn || layoffMode) {
-                addMessage("❌ Not your turn, already drawn, or exit lay-off mode first");
-                return;
-            }
-            
-            if (!gameState.discardTop) {
-                addMessage("❌ No card in discard pile");
-                return;
-            }
-            
-            addMessage("Picking up from discard pile...");
-            socket.emit('pickUpDiscard');
-        }
-        
-        function buyCard() {
-            if (gameState.isMyTurn || gameState.buysRemaining <= 0 || layoffMode) {
-                addMessage("❌ Cannot buy on your turn, no buys left, or exit lay-off mode first");
-                return;
-            }
-            
-            if (!gameState.discardTop) {
-                addMessage("❌ No card to buy");
-                return;
-            }
-            
-            addMessage("Buying card...");
-            socket.emit('buyCard');
-        }
-        
-        function makeSet() {
-            if (layoffMode || !gameState.isMyTurn || gameState.selectedCards.length < 3) {
-                addMessage("❌ Exit lay-off mode, ensure it's your turn, and select at least 3 cards to make a set");
-                return;
-            }
-            
-            addMessage(`Attempting to make set with ${gameState.selectedCards.length} cards...`);
-            
-            socket.emit('makeMeld', {
-                cardIndices: gameState.selectedCards,
-                meldType: 'set'
-            });
-        }
-        
-        function makeRun() {
-            if (layoffMode || !gameState.isMyTurn || gameState.selectedCards.length < 4) {
-                addMessage("❌ Exit lay-off mode, ensure it's your turn, and select at least 4 cards to make a run");
-                return;
-            }
-            
-            addMessage(`Attempting to make run with ${gameState.selectedCards.length} cards...`);
-            
-            socket.emit('makeMeld', {
-                cardIndices: gameState.selectedCards,
-                meldType: 'run'
-            });
-        }
-        
-        function discardCard() {
-            if (layoffMode || !gameState.isMyTurn || !gameState.hasDrawn || gameState.selectedCards.length !== 1) {
-                addMessage("❌ Exit lay-off mode, ensure it's your turn, draw first, and select exactly one card to discard");
-                return;
-            }
-            
-            const originalIndex = gameState.selectedCards[0];
-            
-            socket.emit('discardCard', {
-                cardIndex: originalIndex
-            });
-            
-            gameState.selectedCards = [];
-        }
-        
-        // Initialize
-        window.addEventListener('load', function() {
-            addMessage('Welcome to Slattery Shanghai!');
-            addMessage('🤖 Add AI players for solo practice or to fill up your game!');
-            addMessage('Click "Connect to Server" first, then join the game.');
+        // Initialize on load
+        window.addEventListener('load', () => {
+            game.addMessage('Welcome to Slattery Shanghai!');
+            game.addMessage('Click "Connect to Server" to begin');
         });
     </script>
 </body>
