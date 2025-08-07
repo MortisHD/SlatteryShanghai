@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 9494;
 // Serve static files
 app.use(express.static(__dirname));
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'client.html'));
+    res.sendFile(path.join(__dirname, 'slattery-shanghai.html'));
 });
 
 // Game storage
@@ -808,3 +808,4 @@ process.on('SIGINT', () => {
         process.exit(0);
     });
 });
+
