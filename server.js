@@ -64,7 +64,7 @@ class Card {
 
     getScoreValue() {
         if (this.rank === 'A') return 20;
-        if (['J', 'Q', 'K'].includes(rank)) return 10;
+        if (['J', 'Q', 'K'].includes(this.rank)) return 10;
         return parseInt(this.rank);
     }
 }
@@ -396,7 +396,13 @@ class Game {
             return { success: false, message: "Not your turn" };
         }
 
-        // ***** FIX: Changed 'game' to 'this' to correctly reference the current game instance *****
+        // --- NEW: Server-side validation to ensure player has met their contract ---
+        const validation = this.validatePlayerMeetsRoundRequirements(playerName);
+        if (!validation.meetsRequirements) {
+            return { success: false, message: "You must meet your round requirements before laying off cards." };
+        }
+        // --- END NEW VALIDATION ---
+
         const hand = this.playerHands.get(playerName);
         if (cardIndex < 0 || cardIndex >= hand.length) {
             return { success: false, message: "Invalid card" };
@@ -419,8 +425,10 @@ class Game {
         console.log(`${playerName} laid off ${card.display} to ${targetPlayerName}'s ${targetMeld.type}`);
 
         if (hand.length === 0) {
-            const validation = this.validatePlayerMeetsRoundRequirements(playerName);
-            if (!validation.meetsRequirements) {
+            // This check is implicitly handled by the new validation at the start of the function,
+            // but we keep it here as a safeguard for the "going out" action.
+            const postLayoffValidation = this.validatePlayerMeetsRoundRequirements(playerName);
+            if (!postLayoffValidation.meetsRequirements) {
                 hand.splice(cardIndex, 0, card); // Put card back
                 targetMeld.cards.pop();
                 return { success: false, message: `Cannot go out! You need: ${ROUND_REQUIREMENTS[this.currentRound - 1].melds}` };
@@ -443,6 +451,26 @@ class Game {
         return false;
     }
     
+    validatePlayerMeetsRoundRequirements(playerName) {
+        const playerMelds = this.playerMelds.get(playerName) || [];
+        const requirements = ROUND_REQUIREMENTS[this.currentRound - 1];
+        
+        let validSets = 0;
+        let validRuns = 0;
+        
+        playerMelds.forEach(meld => {
+            if (meld.type === 'set' && meld.cards.length >= requirements.minSetSize) {
+                validSets++;
+            } else if (meld.type === 'run' && meld.cards.length >= requirements.minRunSize) {
+                validRuns++;
+            }
+        });
+        
+        const meetsRequirements = validSets >= requirements.sets && validRuns >= requirements.runs;
+        
+        return { meetsRequirements };
+    }
+
     // ... (All other Game class methods from your file remain unchanged) ...
     // (drawCard, pickUpDiscard, buyCard, discardCard, makeMeld, etc.)
     drawCard(playerName) {
@@ -554,6 +582,23 @@ class Game {
         return { success: true, card: discardedCard };
     }
 
+    validateMeld(cards, meldType) {
+        if (meldType === 'set' && cards.length < 3) return false;
+        if (meldType === 'run' && cards.length < 4) return false;
+
+        if (meldType === 'set') {
+            return cards.every(card => card.rank === cards[0].rank);
+        } else if (meldType === 'run') {
+            if (!cards.every(card => card.suit === cards[0].suit)) return false;
+            const sortedCards = cards.sort((a, b) => a.value - b.value);
+            for (let i = 1; i < sortedCards.length; i++) {
+                if (sortedCards[i].value !== sortedCards[i-1].value + 1) return false;
+            }
+            return true;
+        }
+        return false;
+    }
+
     makeMeld(playerName, cardIndices, meldType) {
         if (this.getCurrentPlayer() !== playerName) {
             return { success: false, message: "Not your turn" };
@@ -569,11 +614,13 @@ class Game {
         const sortedIndices = [...cardIndices].sort((a, b) => b - a);
         sortedIndices.forEach(index => hand.splice(index, 1));
 
+        if (!this.playerMelds.has(playerName)) this.playerMelds.set(playerName, []);
         this.playerMelds.get(playerName).push({ type: meldType, cards });
 
         if (hand.length === 0) {
              const validation = this.validatePlayerMeetsRoundRequirements(playerName);
             if (!validation.meetsRequirements) {
+                 // This case is tricky, might need to revert the meld
                  return { success: false, message: `You've melded all cards but don't meet round requirements: ${ROUND_REQUIREMENTS[this.currentRound - 1].melds}` };
             }
             const roundResult = this.endRound(playerName);
@@ -583,6 +630,37 @@ class Game {
         return { success: true, meld: { type: meldType, cards } };
     }
     
+    endRound(winner) {
+        this.players.forEach(player => {
+            let roundScore = 0;
+            if (player !== winner) {
+                const hand = this.playerHands.get(player);
+                roundScore = hand.reduce((sum, card) => sum + card.getScoreValue(), 0);
+            }
+            const scores = this.playerScores.get(player);
+            scores[this.currentRound - 1] = roundScore;
+        });
+
+        if (this.currentRound >= 7) {
+            return { gameEnded: true, finalResults: this.endGame() };
+        } else {
+            this.currentRound++;
+            this.dealRound();
+            return { gameEnded: false, newRound: this.currentRound };
+        }
+    }
+
+    endGame() {
+        const finalScores = new Map();
+        this.players.forEach(player => {
+            const total = this.playerScores.get(player).reduce((sum, score) => sum + score, 0);
+            finalScores.set(player, total);
+        });
+        
+        const sortedPlayers = Array.from(finalScores.entries()).sort((a, b) => a[1] - b[1]);
+        return { winner: sortedPlayers[0][0], winnerScore: sortedPlayers[0][1], finalStandings: sortedPlayers };
+    }
+
     getGameState(playerName) {
         const allPlayerMelds = {};
         this.players.forEach(player => {
@@ -668,7 +746,6 @@ io.on('connection', (socket) => {
         const result = game.drawCard(socket.playerName);
         if (result.success) {
             game.broadcastGameUpdate();
-            game.broadcastMessage(`${socket.playerName} drew a card`);
         } else {
             socket.emit('error', result);
         }
@@ -680,7 +757,6 @@ io.on('connection', (socket) => {
         const result = game.pickUpDiscard(socket.playerName);
         if (result.success) {
             game.broadcastGameUpdate();
-            game.broadcastMessage(`${socket.playerName} picked up the ${result.card.display} from discard pile`);
         } else {
             socket.emit('error', result);
         }
@@ -692,7 +768,6 @@ io.on('connection', (socket) => {
         const result = game.buyCard(socket.playerName);
         if (result.success) {
             game.broadcastGameUpdate();
-            game.broadcastMessage(`${socket.playerName} bought the ${result.discardCard.display} and drew a penalty card`);
         } else {
             socket.emit('error', result);
         }
@@ -704,7 +779,6 @@ io.on('connection', (socket) => {
         const result = game.layOffCard(socket.playerName, data.cardIndex, data.targetPlayer, data.meldIndex);
         if (result.success) {
             game.broadcastGameUpdate();
-            game.broadcastMessage(`${socket.playerName} laid off ${result.card.display} to ${data.targetPlayer}'s meld`);
             if (result.roundEnded) game.handleRoundEnd(result.roundResult);
         } else {
             socket.emit('error', result);
@@ -717,7 +791,6 @@ io.on('connection', (socket) => {
         const result = game.discardCard(socket.playerName, data.cardIndex);
         if (result.success) {
             game.broadcastGameUpdate();
-            game.broadcastMessage(`${socket.playerName} discarded ${result.card.display}`);
             if (result.roundEnded) game.handleRoundEnd(result.roundResult);
         } else {
             socket.emit('error', result);
@@ -729,12 +802,9 @@ io.on('connection', (socket) => {
         if (!game) return;
         const result = game.makeMeld(socket.playerName, data.cardIndices, data.meldType);
         if (result.success) {
+            game.broadcastGameUpdate();
             if (result.roundEnded) {
-                game.broadcastMessage(`${socket.playerName} made a ${data.meldType} with ${result.meld.cards.length} cards`);
                 game.handleRoundEnd(result.roundResult);
-            } else {
-                game.broadcastGameUpdate();
-                game.broadcastMessage(`${socket.playerName} made a ${data.meldType} with ${result.meld.cards.length} cards`);
             }
         } else {
             socket.emit('error', result);
