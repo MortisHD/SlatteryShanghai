@@ -372,6 +372,28 @@
                     <h3>Round <span id="currentRound">1</span> of 7</h3>
                     <div>Required: <span id="requiredMelds">-</span></div>
                     <div>Buys Remaining: <span id="buysRemaining">3</span></div>
+                    
+                    <!-- Turn Indicator -->
+                    <div id="turnIndicator" style="margin-top: 15px; padding: 10px; border-radius: 8px; background: rgba(255,215,0,0.2); border: 2px solid var(--gold); text-align: center; font-weight: bold; display: none;">
+                        🎯 <span id="currentPlayerName">Your</span> Turn!
+                    </div>
+                    
+                    <!-- Buy Button Section -->
+                    <div id="buySection" style="margin-top: 15px; padding: 15px; border-radius: 8px; background: rgba(255,152,0,0.2); border: 2px solid var(--orange); text-align: center; display: none;">
+                        <div style="margin-bottom: 10px;">
+                            <strong>🃏 Card Available to Buy:</strong>
+                            <div id="buyCardAvailable" style="margin: 8px 0; font-size: 18px; font-weight: bold;"></div>
+                        </div>
+                        <div style="margin-bottom: 10px;">
+                            <small>Buy this card + draw penalty card</small><br>
+                            <small>Buys left: <span id="buyCountIndicator">3</span></small>
+                        </div>
+                        <div style="margin-bottom: 10px;">
+                            <div id="buyTimer" style="color: var(--orange); font-weight: bold; font-size: 14px;">Time left: 10s</div>
+                        </div>
+                        <button class="btn-primary" id="buyButton" onclick="submitBuy(true)" style="margin-right: 10px;">Buy Card</button>
+                        <button class="btn-secondary" id="passBuyButton" onclick="submitBuy(false)">Pass</button>
+                    </div>
                 </div>
                 
                 <!-- Card Piles -->
@@ -414,6 +436,7 @@
                 <div style="margin-top: 10px;">
                     <button class="btn-secondary" onclick="sortBySuit()">Sort by Suit</button>
                     <button class="btn-secondary" onclick="sortByRank()">Sort by Rank</button>
+                    <button class="btn-secondary" onclick="testBuyButton()" style="background: linear-gradient(45deg, #9c27b0, #7b1fa2);">Test Buy Button</button>
                 </div>
             </div>
             
@@ -458,6 +481,8 @@
     <script>
         // Game state
         let socket = null;
+        let buyTimer = null;
+        let buyTimeLeft = 0;
         let gameState = {
             myName: '',
             gameCode: '',
@@ -646,6 +671,10 @@
         // Update game state
         function updateGameState(data) {
             Object.assign(gameState, data);
+            
+            // Track if it's my turn
+            gameState.isMyTurn = gameState.currentPlayer === gameState.myName;
+            
             updateUI();
         }
         
@@ -666,7 +695,7 @@
                     if (dialog.style.display !== 'none') {
                         submitDiscardDecision(false);
                     }
-                }, data.timeLimit || 3000);
+                }, data.timeLimit || 10000);
             }
         }
 
@@ -680,7 +709,17 @@
 
         // Handle buy request
         function handleBuyRequest(data) {
-            if (!data.card || gameState.buysRemaining <= 0) return;
+            console.log('🛒 Buy request received:', data);
+            
+            if (!data.card || gameState.buysRemaining <= 0) {
+                console.log('❌ Buy request rejected: no card or no buys left');
+                return;
+            }
+            
+            console.log('✅ Showing buy section...');
+            
+            // Show persistent buy section
+            showBuySection(data.card, data.timeLimit || 10000);
             
             const dialog = document.getElementById('buyDialog');
             const cardDisplay = document.getElementById('buyCardDisplay');
@@ -697,14 +736,84 @@
                     if (dialog.style.display !== 'none') {
                         submitBuy(false);
                     }
-                }, data.timeLimit || 3000);
+                }, data.timeLimit || 10000);
+            }
+        }
+        
+        // Show buy section with timer
+        function showBuySection(card, timeLimit) {
+            console.log('🎯 showBuySection called with:', card, timeLimit);
+            
+            const buySection = document.getElementById('buySection');
+            const cardDisplay = document.getElementById('buyCardAvailable');
+            const buyCountIndicator = document.getElementById('buyCountIndicator');
+            const timerDisplay = document.getElementById('buyTimer');
+            
+            console.log('📋 Elements found:', {
+                buySection: !!buySection,
+                cardDisplay: !!cardDisplay,
+                buyCountIndicator: !!buyCountIndicator,
+                timerDisplay: !!timerDisplay
+            });
+            
+            if (!buySection || !cardDisplay) {
+                console.log('❌ Required elements not found!');
+                return;
+            }
+            
+            // Update display
+            const color = card.color === 'red' ? '#d32f2f' : '#1976d2';
+            cardDisplay.innerHTML = `<span style="color: ${color}; font-weight: bold; background: white; padding: 4px 8px; border-radius: 4px; border: 2px solid #333;">${card.display}</span>`;
+            buyCountIndicator.textContent = gameState.buysRemaining;
+            
+            // Show section
+            buySection.style.display = 'block';
+            console.log('✅ Buy section displayed');
+            
+            // Start countdown timer
+            buyTimeLeft = Math.ceil(timeLimit / 1000);
+            updateBuyTimer();
+            
+            if (buyTimer) clearInterval(buyTimer);
+            buyTimer = setInterval(() => {
+                buyTimeLeft--;
+                updateBuyTimer();
+                
+                if (buyTimeLeft <= 0) {
+                    clearInterval(buyTimer);
+                    hideBuySection();
+                    submitBuy(false);
+                }
+            }, 1000);
+        }
+        
+        // Update buy timer display
+        function updateBuyTimer() {
+            const timerDisplay = document.getElementById('buyTimer');
+            if (timerDisplay) {
+                const color = buyTimeLeft <= 3 ? '#f44336' : '#ff9800';
+                timerDisplay.innerHTML = `<span style="color: ${color};">Time left: ${buyTimeLeft}s</span>`;
+            }
+        }
+        
+        // Hide buy section
+        function hideBuySection() {
+            const buySection = document.getElementById('buySection');
+            if (buySection) buySection.style.display = 'none';
+            
+            if (buyTimer) {
+                clearInterval(buyTimer);
+                buyTimer = null;
             }
         }
         
         // Submit buy decision
         function submitBuy(wantCard) {
+            // Hide both dialog and section
             const dialog = document.getElementById('buyDialog');
             if (dialog) dialog.style.display = 'none';
+            
+            hideBuySection();
             
             socket.emit('submitBuyRequest', { wantsCard: wantCard });
             playSound('click');
@@ -730,6 +839,36 @@
             }
             
             updateDiscardPile();
+            updateTurnIndicator();
+        }
+        
+        // Update turn indicator
+        function updateTurnIndicator() {
+            const turnIndicator = document.getElementById('turnIndicator');
+            const currentPlayerDisplay = document.getElementById('currentPlayerName');
+            
+            if (!turnIndicator || !currentPlayerDisplay) return;
+            
+            if (gameState.currentPlayer && gameState.gameStarted) {
+                const isMyTurn = gameState.currentPlayer === gameState.myName;
+                const isAI = gameState.aiPlayers?.includes(gameState.currentPlayer);
+                
+                turnIndicator.style.display = 'block';
+                
+                if (isMyTurn) {
+                    turnIndicator.style.background = 'rgba(76,175,80,0.3)';
+                    turnIndicator.style.borderColor = 'var(--green)';
+                    currentPlayerDisplay.textContent = 'Your';
+                    turnIndicator.innerHTML = '🎯 <span id="currentPlayerName">Your</span> Turn!';
+                } else {
+                    turnIndicator.style.background = 'rgba(255,215,0,0.2)';
+                    turnIndicator.style.borderColor = 'var(--gold)';
+                    const playerDisplayName = gameState.currentPlayer + (isAI ? ' 🤖' : '');
+                    turnIndicator.innerHTML = `⏳ ${playerDisplayName}'s Turn`;
+                }
+            } else {
+                turnIndicator.style.display = 'none';
+            }
         }
         
         // Update discard pile
@@ -973,6 +1112,20 @@
             
             updateHand();
             playSound('click');
+        }
+        
+        // Test function to show buy button
+        function testBuyButton() {
+            const testCard = {
+                rank: 'K',
+                suit: 'hearts',
+                display: 'K♥',
+                color: 'red'
+            };
+            
+            gameState.buysRemaining = 3;
+            showBuySection(testCard, 10000);
+            showNotification("Buy button test activated!", "info");
         }
         
         // Initialize on page load
