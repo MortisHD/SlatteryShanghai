@@ -1,897 +1,947 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Slattery Shanghai - Enhanced Edition</title>
-    <meta name="description" content="Enhanced Shanghai Rummy card game with AI players">
-    <link rel="preconnect" href="https://cdn.socket.io">
-    <style>
-        :root {
-            --gold: #ffd700;
-            --blue: #2a5298;
-            --green: #4caf50;
-            --red: #f44336;
-            --orange: #ff9800;
-            --purple: #9c27b0;
-            --ai-blue: #90caf9;
-            --bg-glass: rgba(255,255,255,0.15);
-            --border-radius: 8px;
-            --transition: all 0.3s ease;
+const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
+const path = require('path');
+
+const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+    cors: { 
+        origin: process.env.NODE_ENV === 'production' ? false : "*", 
+        methods: ["GET", "POST"] 
+    },
+    transports: ['websocket', 'polling'],
+    pingTimeout: 60000,
+    pingInterval: 25000
+});
+
+const PORT = process.env.PORT || 9494;
+
+// Performance optimizations
+app.set('trust proxy', 1);
+app.use(express.static(__dirname, { 
+    maxAge: '1d',
+    etag: false 
+}));
+
+// Performance optimizations
+app.set('trust proxy', 1);
+app.use(express.static(__dirname, { 
+    maxAge: '1d',
+    etag: false 
+}));
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'slattery-shanghai.html'));
+});
+
+// Optimized game storage with cleanup
+const games = new Map();
+const playerSockets = new Map();
+
+// Auto-cleanup inactive games every 30 minutes
+setInterval(() => {
+    const now = Date.now();
+    for (const [code, game] of games.entries()) {
+        if (now - game.lastActivity > 30 * 60 * 1000) { // 30 minutes
+            games.delete(code);
+            console.log(`Cleaned up inactive game: ${code}`);
         }
+    }
+}, 30 * 60 * 1000);
+
+// Optimized constants with frozen objects for immutability
+const SUITS = Object.freeze(['hearts', 'diamonds', 'clubs', 'spades']);
+const RANKS = Object.freeze(['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']);
+const SUIT_SYMBOLS = Object.freeze({ hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠' });
+const AI_NAMES = Object.freeze(['Hiro', 'Honey Lemon', 'Rosie', 'Oreo']);
+
+// Pre-computed value mappings for performance
+const RANK_VALUES = Object.freeze({
+    'A': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, 
+    '8': 8, '9': 9, '10': 10, 'J': 10, 'Q': 10, 'K': 10
+});
+
+const RANK_SCORES = Object.freeze({
+    'A': 20, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, 
+    '8': 8, '9': 9, '10': 10, 'J': 10, 'Q': 10, 'K': 10
+});
+
+const ROUND_REQUIREMENTS = Object.freeze([
+    Object.freeze({ round: 1, melds: "2 Sets of 3", sets: 2, runs: 0, minSetSize: 3, minRunSize: 0 }),
+    Object.freeze({ round: 2, melds: "1 Set of 3 + 1 Run of 4", sets: 1, runs: 1, minSetSize: 3, minRunSize: 4 }),
+    Object.freeze({ round: 3, melds: "2 Runs of 4", sets: 0, runs: 2, minSetSize: 0, minRunSize: 4 }),
+    Object.freeze({ round: 4, melds: "3 Sets of 3", sets: 3, runs: 0, minSetSize: 3, minRunSize: 0 }),
+    Object.freeze({ round: 5, melds: "2 Sets of 3 + 1 Run of 4", sets: 2, runs: 1, minSetSize: 3, minRunSize: 4 }),
+    Object.freeze({ round: 6, melds: "1 Set of 3 + 2 Runs of 4", sets: 1, runs: 2, minSetSize: 3, minRunSize: 4 }),
+    Object.freeze({ round: 7, melds: "3 Runs of 4", sets: 0, runs: 3, minSetSize: 0, minRunSize: 4 })
+]);
+
+// Optimized Card class with pre-computed values
+class Card {
+    constructor(suit, rank) {
+        this.suit = suit;
+        this.rank = rank;
+        this.value = RANK_VALUES[rank];
+        this.scoreValue = RANK_SCORES[rank];
+        this.display = rank + SUIT_SYMBOLS[suit];
+        this.color = (suit === 'hearts' || suit === 'diamonds') ? 'red' : 'black';
+        this.id = `${suit}_${rank}`; // Unique identifier for faster comparisons
+        Object.freeze(this); // Prevent mutations
+    }
+
+    // Removed redundant methods since values are pre-computed
+}
+
+// Optimized Deck class with Fisher-Yates shuffle
+class Deck {
+    constructor() {
+        this.cards = [];
+        this.initialize();
+        this.shuffle();
+    }
+
+    initialize() {
+        // Pre-allocate array for better performance
+        this.cards = new Array(104); // 2 decks * 52 cards
+        let index = 0;
         
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        // Create 2 decks for Shanghai
+        for (let deck = 0; deck < 2; deck++) {
+            for (const suit of SUITS) {
+                for (const rank of RANKS) {
+                    this.cards[index++] = new Card(suit, rank);
+                }
+            }
         }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            color: white;
-            min-height: 100vh;
-            padding: 20px;
+    }
+
+    shuffle() {
+        // Optimized Fisher-Yates shuffle
+        for (let i = this.cards.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [this.cards[i], this.cards[j]] = [this.cards[j], this.cards[i]];
         }
-        
-        /* Optimized animations - use GPU acceleration */
-        .fade-in {
-            animation: fadeIn 0.5s ease-out;
+    }
+
+    deal() {
+        return this.cards.pop();
+    }
+
+    isEmpty() {
+        return this.cards.length === 0;
+    }
+
+    reset(discardPile) {
+        if (discardPile.length > 0) {
+            // Reuse existing array instead of creating new one
+            this.cards.length = 0;
+            this.cards.push(...discardPile);
+            this.shuffle();
+            return true;
         }
+        return false;
+    }
+}
+
+// Simplified AI Player
+class AIPlayer {
+    constructor(name, difficulty = 'medium') {
+        this.name = name;
+        this.difficulty = difficulty;
+        this.isAI = true;
+    }
+
+    getDelay() {
+        const delays = { easy: 3000, medium: 2000, hard: 1000 };
+        return delays[this.difficulty] + Math.random() * 1000;
+    }
+
+    evaluateCard(card, hand) {
+        let value = 0;
         
-        .slide-in {
-            animation: slideIn 0.5s ease-out;
-        }
+        // Check for set potential
+        const sameRank = hand.filter(c => c.rank === card.rank).length;
+        value += sameRank * 3;
         
-        .pulse {
-            animation: pulse 1.5s infinite;
-        }
+        // Check for run potential
+        const sameSuit = hand.filter(c => c.suit === card.suit);
+        sameSuit.forEach(c => {
+            const diff = Math.abs(c.value - card.value);
+            if (diff === 1) value += 4;
+            if (diff === 2) value += 2;
+        });
         
-        .glow {
-            animation: glow 2s infinite;
-        }
+        return value;
+    }
+
+    shouldBuy(card, hand, buys) {
+        if (buys <= 0) return false;
+        const value = this.evaluateCard(card, hand);
+        const thresholds = { easy: 7, medium: 5, hard: 4 };
+        return value > thresholds[this.difficulty];
+    }
+
+    findBestMeld(hand, requirements) {
+        const melds = [];
         
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
+        // Find sets
+        const rankGroups = {};
+        hand.forEach((card, idx) => {
+            if (!rankGroups[card.rank]) rankGroups[card.rank] = [];
+            rankGroups[card.rank].push(idx);
+        });
         
-        @keyframes slideIn {
-            from { opacity: 0; transform: translate3d(0, -20px, 0); }
-            to { opacity: 1; transform: translate3d(0, 0, 0); }
-        }
+        Object.values(rankGroups).forEach(group => {
+            if (group.length >= 3) {
+                melds.push({ type: 'set', indices: group.slice(0, 3) });
+            }
+        });
         
-        @keyframes pulse {
-            0%, 100% { transform: scale3d(1, 1, 1); }
-            50% { transform: scale3d(1.05, 1.05, 1.05); }
-        }
+        // Find runs
+        const suitGroups = {};
+        hand.forEach((card, idx) => {
+            if (!suitGroups[card.suit]) suitGroups[card.suit] = [];
+            suitGroups[card.suit].push({ card, idx });
+        });
         
-        @keyframes glow {
-            0%, 100% { box-shadow: 0 0 10px currentColor; }
-            50% { box-shadow: 0 0 20px currentColor; }
-        }
-        
-        /* Optimized button styles - consolidated classes */
-        .btn {
-            padding: 12px;
-            margin: 10px 0;
-            font-size: 16px;
-            border: none;
-            border-radius: var(--border-radius);
-            color: white;
-            cursor: pointer;
-            font-weight: 600;
-            text-transform: uppercase;
-            transition: var(--transition);
-            position: relative;
-            overflow: hidden;
-            will-change: transform;
-            -webkit-tap-highlight-color: transparent;
-        }
-        
-        .btn:hover:not(:disabled) {
-            transform: translate3d(0, -2px, 0);
-            box-shadow: 0 8px 15px rgba(0,0,0,0.3);
-        }
-        
-        .btn:active {
-            transform: translate3d(0, 0, 0);
-        }
-        
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            pointer-events: none;
-        }
-        
-        .btn-primary { background: linear-gradient(45deg, var(--green), #45a049); }
-        .btn-secondary { background: linear-gradient(45deg, var(--orange), #f57c00); }
-        .btn-danger { background: linear-gradient(45deg, var(--red), #da190b); }
-        .btn-layoff { background: linear-gradient(45deg, var(--purple), #7b1fa2); }
-        
-        /* Optimized card styles with better performance */
-        .card {
-            width: 60px;
-            height: 84px;
-            background: white;
-            border-radius: var(--border-radius);
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 5px;
-            cursor: pointer;
-            border: 2px solid transparent;
-            font-size: 12px;
-            font-weight: bold;
-            transition: var(--transition);
-            user-select: none;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            will-change: transform;
-            backface-visibility: hidden;
-        }
-        
-        .card:hover {
-            transform: translate3d(0, -3px, 0) scale3d(1.05, 1.05, 1.05);
-            box-shadow: 0 8px 15px rgba(0,0,0,0.4);
-            z-index: 10;
-        }
-        
-        .card.selected {
-            border-color: var(--gold);
-        }
-        
-        .card.selected {
-            animation: pulse 1.5s infinite;
-        }
-        
-        .card.wanted {
-            border-color: var(--gold);
-            animation: glow 2s infinite;
-        }
-        
-        .card.red { color: #d32f2f; }
-        .card.black { color: #1976d2; }
-        
-        /* Optimized layout and dialog styles */
-        .dialog {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            padding: 25px;
-            border-radius: 15px;
-            border: 3px solid var(--gold);
-            color: white;
-            text-align: center;
-            z-index: 1000;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
-            min-width: 300px;
-        }
-        
-        .section {
-            background: var(--bg-glass);
-            padding: 20px;
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-            margin-bottom: 20px;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        
-        .header h1 {
-            font-size: 2.5rem;
-            color: var(--gold);
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-        }
-        
-        .game-board {
-            display: none;
-            grid-template-columns: 1fr 300px;
-            gap: 20px;
-        }
-        
-        /* Optimized interactive elements */
-        .pile {
-            width: 80px;
-            height: 112px;
-            background: rgba(255,255,255,0.1);
-            border: 3px dashed rgba(255,255,255,0.4);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: var(--transition);
-            will-change: transform;
-        }
-        
-        .pile:hover {
-            background: rgba(255,255,255,0.2);
-            border-color: var(--gold);
-            transform: scale3d(1.1, 1.1, 1.1);
-        }
-        
-        .cards-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
-            margin-top: 10px;
-            min-height: 90px;
-        }
-        
-        .meld-display {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin: 8px 0;
-            padding: 10px;
-            background: rgba(255,255,255,0.1);
-            border-radius: var(--border-radius);
-            border: 1px solid rgba(255,255,255,0.2);
-            transition: var(--transition);
-        }
-        
-        .player-section {
-            margin-bottom: 15px;
-            padding: 12px;
-            background: rgba(255,255,255,0.08);
-            border-radius: 8px;
-            border-left: 3px solid var(--green);
-        }
-        
-        .player-section.current {
-            border-left-color: var(--gold);
-            background: rgba(255,215,0,0.1);
-        }
-        
-        .player-section.ai {
-            border-left-color: var(--ai-blue);
-            background: rgba(144,202,249,0.1);
-        }
-        
-        .notification {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            padding: 20px 30px;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: bold;
-            z-index: 1000;
-            animation: slideIn 0.5s;
-        }
-        
-        .notification.success { background: var(--green); }
-        .notification.error { background: var(--red); }
-        .notification.info { background: var(--blue); }
-        
-        .sound-control {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            background: rgba(0,0,0,0.8);
-            border: 2px solid rgba(255,255,255,0.3);
-            border-radius: 50px;
-            padding: 10px;
-            cursor: pointer;
-            z-index: 200;
-            transition: all 0.3s;
-        }
-        
-        .sound-control:hover {
-            background: rgba(0,0,0,0.9);
-            border-color: var(--gold);
-            transform: scale(1.1);
-        }
-        
-        .messages {
-            background: rgba(0,0,0,0.3);
-            padding: 15px;
-            border-radius: 8px;
-            height: 200px;
-            overflow-y: auto;
-            margin: 15px 0;
-        }
-        
-        input {
-            width: 100%;
-            padding: 12px;
-            margin: 10px 0;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            background: rgba(255,255,255,0.95);
-        }
-        
-        @media (max-width: 768px) {
-            .game-board { grid-template-columns: 1fr; }
-            .card { width: 50px; height: 70px; font-size: 10px; }
-        }
-    </style>
-</head>
-<body>
-    <div class="sound-control" onclick="game.toggleSound()">
-        <span id="soundIcon">🔊</span>
-    </div>
-    
-    <div class="container">
-        <div class="header">
-            <h1>Slattery Shanghai</h1>
-            <p>Enhanced Family Card Game - 7 Rounds Edition</p>
-        </div>
-        
-        <div id="gameSetup" class="section">
-            <h2>Join Game</h2>
-            <div id="connectionStatus">Status: Not connected</div>
-            <input type="text" id="playerName" placeholder="Your name" maxlength="20">
-            <input type="text" id="gameCode" placeholder="Game code (optional)" maxlength="10">
-            <div class="section">
-                <h4>🤖 AI Players</h4>
-                <label>Number of AI players:</label>
-                <input type="number" id="aiCount" min="0" max="6" value="3" style="width: 80px;">
-            </div>
-            <button class="btn btn-primary" onclick="game.connect()">Connect to Server</button>
-            <button class="btn btn-primary" id="joinBtn" onclick="game.joinGame()" disabled>Join Game</button>
-            <div id="waitingArea" style="display: none;">
-                <h3>Waiting for Players...</h3>
-                <div>Game Code: <span id="displayCode">-</span></div>
-                <div>Players: <span id="playerCount">0</span></div>
-                <div id="currentPlayers"></div>
-                <button class="btn btn-primary" id="startBtn" onclick="game.startGame()" style="display: none;">Start Game</button>
-            </div>
-        </div>
-        
-        <div id="gameBoard" class="game-board">
-            <div class="section">
-                <div class="section">
-                    <h3>Round <span id="currentRound">1</span> of 7</h3>
-                    <div>Required: <span id="requiredMelds">-</span></div>
-                </div>
+        Object.values(suitGroups).forEach(group => {
+            if (group.length >= 4) {
+                group.sort((a, b) => a.card.value - b.card.value);
                 
-                <div style="display: flex; justify-content: center; gap: 20px; margin: 20px 0;">
-                    <div class="pile" onclick="game.drawCard()">
-                        <div>🂠<br><small>Draw</small></div>
-                    </div>
-                    <div class="pile" onclick="game.pickUpDiscard()">
-                        <div id="discardDisplay">No Card<br><small>Pick Up</small></div>
-                    </div>
-                </div>
-                
-                <div class="section">
-                    <h4>Players' Melds</h4>
-                    <div id="allPlayerMelds">No melds yet</div>
-                </div>
-                
-                <div class="section">
-                    <h4>Your Hand (<span id="handCount">0</span> cards)</h4>
-                    <div id="playerHand" class="cards-container"></div>
-                </div>
-                
-                <div class="section">
-                    <h4>Your Melds</h4>
-                    <div id="playerMelds">No melds yet</div>
-                </div>
-                
-                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <button class="btn btn-primary" onclick="game.makeSet()" id="setBtn">Make Set</button>
-                    <button class="btn btn-primary" onclick="game.makeRun()" id="runBtn">Make Run</button>
-                    <button class="btn btn-layoff" onclick="game.toggleLayoff()" id="layoffBtn">Lay Off</button>
-                    <button class="btn btn-danger" onclick="game.discardCard()" id="discardBtn">Discard</button>
-                </div>
-                
-                <div style="margin-top: 10px;">
-                    <button class="btn btn-secondary" onclick="game.sortBySuit()">Sort by Suit</button>
-                    <button class="btn btn-secondary" onclick="game.sortByRank()">Sort by Rank</button>
-                </div>
-            </div>
-            
-            <div class="section">
-                <div id="playersList"></div>
-                <div class="messages" id="messages"></div>
-                <div id="scoresTable"></div>
-            </div>
-        </div>
-    </div>
-    
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <script>
-        // High-performance game controller with optimizations
-        const game = {
-            // Centralized state management
-            state: {
-                socket: null,
-                myName: '',
-                gameCode: '',
-                players: [],
-                currentPlayer: '',
-                round: 1,
-                hand: [],
-                melds: [],
-                selectedCards: new Set(), // Use Set for better performance
-                isMyTurn: false,
-                hasDrawn: false,
-                hasGoneDown: false,
-                layoffMode: false,
-                soundEnabled: true,
-                cardOrder: [],
-                lastUpdate: 0 // Throttle updates
-            },
-            
-            // Audio context with lazy initialization
-            audioCtx: null,
-            soundCache: new Map(), // Cache sound objects
-            
-            // Throttle function for performance
-            throttle(func, delay) {
-                let timeoutId;
-                let lastExecTime = 0;
-                
-                return function (...args) {
-                    const currentTime = Date.now();
+                for (let i = 0; i <= group.length - 4; i++) {
+                    const run = [];
+                    let lastValue = group[i].card.value - 1;
                     
-                    if (currentTime - lastExecTime > delay) {
-                        func.apply(this, args);
-                        lastExecTime = currentTime;
-                    } else {
-                        clearTimeout(timeoutId);
-                        timeoutId = setTimeout(() => {
-                            func.apply(this, args);
-                            lastExecTime = Date.now();
-                        }, delay - (currentTime - lastExecTime));
-                    }
-                };
-            },
-            
-            // Optimized audio initialization
-            initAudio() {
-                if (!this.audioCtx) {
-                    this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                }
-                
-                // Resume context if suspended (for mobile browsers)
-                if (this.audioCtx.state === 'suspended') {
-                    this.audioCtx.resume();
-                }
-            },
-            
-            // Optimized sound generation with caching
-            playSound(type) {
-                if (!this.state.soundEnabled) return;
-                
-                this.initAudio();
-                
-                // Check cache first
-                if (this.soundCache.has(type)) {
-                    const cachedSound = this.soundCache.get(type);
-                    cachedSound.currentTime = 0;
-                    cachedSound.play().catch(() => {}); // Ignore play errors
-                    return;
-                }
-                
-                const oscillator = this.audioCtx.createOscillator();
-                const gainNode = this.audioCtx.createGain();
-                
-                oscillator.connect(gainNode);
-                gainNode.connect(this.audioCtx.destination);
-                
-                const sounds = {
-                    click: { freq: 800, dur: 0.1 },
-                    success: { freq: 1000, dur: 0.2 },
-                    error: { freq: 200, dur: 0.3 }
-                };
-                
-                const sound = sounds[type] || sounds.click;
-                oscillator.frequency.value = sound.freq;
-                gainNode.gain.setValueAtTime(0.1, this.audioCtx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioCtx.currentTime + sound.dur);
-                
-                oscillator.start();
-                oscillator.stop(this.audioCtx.currentTime + sound.dur);
-            },
-            
-            // Toggle sound
-            toggleSound() {
-                this.state.soundEnabled = !this.state.soundEnabled;
-                document.getElementById('soundIcon').textContent = this.state.soundEnabled ? '🔊' : '🔇';
-                if (this.state.soundEnabled) this.playSound('click');
-            },
-            
-            // Show notification
-            notify(message, type = 'info') {
-                const notif = document.createElement('div');
-                notif.className = `notification ${type}`;
-                notif.textContent = message;
-                document.body.appendChild(notif);
-                
-                this.playSound(type === 'error' ? 'error' : 'success');
-                
-                setTimeout(() => {
-                    notif.style.opacity = '0';
-                    setTimeout(() => notif.remove(), 300);
-                }, 2500);
-            },
-            
-            // Add message to chat
-            addMessage(text) {
-                const messages = document.getElementById('messages');
-                if (!messages) return;
-                
-                const msg = document.createElement('div');
-                msg.textContent = `${new Date().toLocaleTimeString()}: ${text}`;
-                messages.appendChild(msg);
-                messages.scrollTop = messages.scrollHeight;
-                
-                // Keep only last 50 messages
-                while (messages.children.length > 50) {
-                    messages.firstChild.remove();
-                }
-            },
-            
-            // Connect to server
-            connect() {
-                this.addMessage("Connecting to server...");
-                
-                if (this.state.socket) {
-                    this.state.socket.disconnect();
-                }
-                
-                this.state.socket = io({
-                    transports: ['websocket', 'polling'],
-                    timeout: 5000
-                });
-                
-                this.setupSocketHandlers();
-            },
-            
-            // Setup socket event handlers
-            setupSocketHandlers() {
-                const socket = this.state.socket;
-                
-                socket.on('connect', () => {
-                    this.addMessage("✅ Connected!");
-                    document.getElementById('connectionStatus').textContent = "Status: Connected";
-                    document.getElementById('joinBtn').disabled = false;
-                    this.notify("Connected to server!", "success");
-                });
-                
-                socket.on('disconnect', () => {
-                    this.addMessage("❌ Disconnected");
-                    document.getElementById('connectionStatus').textContent = "Status: Disconnected";
-                    document.getElementById('joinBtn').disabled = true;
-                    this.notify("Disconnected", "error");
-                });
-                
-                socket.on('playerJoined', (data) => {
-                    this.handlePlayerJoined(data);
-                });
-                
-                socket.on('gameStarted', (data) => {
-                    this.handleGameStarted(data);
-                });
-                
-                socket.on('gameUpdate', (data) => {
-                    this.updateGameState(data);
-                });
-                
-                socket.on('gameMessage', (data) => {
-                    this.addMessage(data.message);
-                    if (data.message.includes('won')) this.playSound('success');
-                });
-                
-                socket.on('error', (data) => {
-                    this.notify(data.message, "error");
-                });
-            },
-            
-            // Handle player joined
-            handlePlayerJoined(data) {
-                this.state.gameCode = data.gameCode;
-                this.state.players = data.players;
-                
-                document.getElementById('displayCode').textContent = data.gameCode;
-                document.getElementById('playerCount').textContent = data.players.length;
-                document.getElementById('waitingArea').style.display = 'block';
-                
-                const playersDiv = document.getElementById('currentPlayers');
-                playersDiv.innerHTML = '<h4>Players:</h4>';
-                data.players.forEach(player => {
-                    const div = document.createElement('div');
-                    div.textContent = player + (data.aiPlayers?.includes(player) ? ' 🤖' : '');
-                    playersDiv.appendChild(div);
-                });
-                
-                if (data.isHost) {
-                    document.getElementById('startBtn').style.display = 'block';
-                }
-            },
-            
-            // Handle game started
-            handleGameStarted(data) {
-                this.addMessage("🎮 Game started!");
-                this.notify("Game Started!", "success");
-                this.updateGameState(data);
-                document.getElementById('gameSetup').style.display = 'none';
-                document.getElementById('gameBoard').style.display = 'grid';
-            },
-            
-            // Update game state
-            updateGameState(data) {
-                Object.assign(this.state, data);
-                if (data.hand) {
-                    this.state.cardOrder = data.hand.map((_, i) => i);
-                }
-                this.throttledUpdateUI();
-            },
-            
-            // Throttled UI update for better performance
-            throttledUpdateUI: null, // Will be set in constructor
-            
-            // Optimized UI update with minimal DOM manipulation
-            updateUI() {
-                const now = Date.now();
-                if (now - this.state.lastUpdate < 16) return; // 60fps limit
-                this.state.lastUpdate = now;
-                
-                requestAnimationFrame(() => {
-                    this.updateHand();
-                    this.updatePlayers();
-                    this.updateMelds();
-                    this.updateButtons();
-                    this.updateGameInfo();
-                });
-            },
-            
-            // Separate game info update to reduce DOM queries
-            updateGameInfo() {
-                const roundEl = document.getElementById('currentRound');
-                const handCountEl = document.getElementById('handCount');
-                const discardEl = document.getElementById('discardDisplay');
-                
-                if (roundEl) roundEl.textContent = this.state.round || 1;
-                if (handCountEl) handCountEl.textContent = this.state.hand?.length || 0;
-                
-                if (discardEl) {
-                    if (this.state.discardTop) {
-                        const color = this.state.discardTop.color === 'red' ? '#d32f2f' : '#1976d2';
-                        discardEl.innerHTML = 
-                            `<span style="color: ${color}; font-weight: bold;">${this.state.discardTop.display}</span><br><small>Pick Up</small>`;
-                    } else {
-                        discardEl.innerHTML = 'No Card<br><small>Pick Up</small>';
-                    }
-                }
-            },
-            
-            // Optimized hand display with virtual scrolling for large hands
-            updateHand() {
-                const container = document.getElementById('playerHand');
-                if (!container) return;
-                
-                // Use DocumentFragment for better performance
-                const fragment = document.createDocumentFragment();
-                
-                this.state.cardOrder.forEach(idx => {
-                    if (idx >= this.state.hand.length) return;
-                    
-                    const card = this.state.hand[idx];
-                    const cardEl = document.createElement('div');
-                    cardEl.className = `card ${card.color}`;
-                    
-                    // Use Set for faster lookup
-                    if (this.state.selectedCards.has(idx)) {
-                        cardEl.classList.add('selected');
+                    for (let j = i; j < group.length && run.length < 4; j++) {
+                        if (group[j].card.value === lastValue + 1) {
+                            run.push(group[j].idx);
+                            lastValue = group[j].card.value;
+                        }
                     }
                     
-                    cardEl.innerHTML = `<div>${card.display}</div><div style="transform: rotate(180deg)">${card.display}</div>`;
-                    
-                    // Use arrow function to maintain context
-                    cardEl.onclick = () => this.toggleCard(idx);
-                    
-                    fragment.appendChild(cardEl);
-                });
-                
-                // Single DOM update
-                container.innerHTML = '';
-                container.appendChild(fragment);
-            },
-            
-            // Optimized players display with minimal DOM updates
-            updatePlayers() {
-                const container = document.getElementById('playersList');
-                if (!container) return;
-                
-                const fragment = document.createDocumentFragment();
-                const header = document.createElement('h4');
-                header.textContent = 'Players';
-                fragment.appendChild(header);
-                
-                this.state.players?.forEach(player => {
-                    const div = document.createElement('div');
-                    div.className = 'player-section';
-                    if (player === this.state.currentPlayer) div.classList.add('current');
-                    div.textContent = player + (player === this.state.currentPlayer ? ' 👑' : '');
-                    fragment.appendChild(div);
-                });
-                
-                container.innerHTML = '';
-                container.appendChild(fragment);
-            },
-            
-            // Update melds display
-            updateMelds() {
-                const container = document.getElementById('playerMelds');
-                if (!container || !this.state.melds) return;
-                
-                if (this.state.melds.length === 0) {
-                    container.innerHTML = 'No melds yet';
-                    return;
+                    if (run.length >= 4) {
+                        melds.push({ type: 'run', indices: run });
+                    }
                 }
-                
-                container.innerHTML = '';
-                this.state.melds.forEach(meld => {
-                    const div = document.createElement('div');
-                    div.className = 'meld-display';
-                    div.innerHTML = `<strong>${meld.type}:</strong> ${meld.cards.map(c => 
-                        `<span style="color: ${c.color === 'red' ? '#d32f2f' : '#1976d2'}">${c.display}</span>`
-                    ).join(' ')}`;
-                    container.appendChild(div);
-                });
-            },
+            }
+        });
+        
+        // Return best meld based on requirements
+        if (requirements.sets > 0 && melds.find(m => m.type === 'set')) {
+            return melds.find(m => m.type === 'set');
+        }
+        if (requirements.runs > 0 && melds.find(m => m.type === 'run')) {
+            return melds.find(m => m.type === 'run');
+        }
+        
+        return melds[0];
+    }
+
+    chooseDiscard(hand) {
+        let worstIdx = 0;
+        let worstValue = Infinity;
+        
+        hand.forEach((card, idx) => {
+            const value = this.evaluateCard(card, hand.filter((_, i) => i !== idx));
+            if (value < worstValue) {
+                worstValue = value;
+                worstIdx = idx;
+            }
+        });
+        
+        return worstIdx;
+    }
+}
+
+// Optimized Game class with better performance and memory management
+class Game {
+    constructor(gameCode, hostName, aiCount = 0) {
+        this.gameCode = gameCode;
+        this.hostName = hostName;
+        this.players = [];
+        this.aiPlayers = new Map();
+        this.playerData = new Map(); // Consolidated player data
+        this.currentRound = 1;
+        this.currentPlayerIndex = 0;
+        this.deck = null;
+        this.discardPile = [];
+        this.gameStarted = false;
+        this.lastActivity = Date.now(); // For cleanup tracking
+        this.turnState = { hasDrawn: false };
+        this.buyPhase = { active: false, card: null, requests: new Map() };
+        
+        // Initialize AI players with better distribution
+        const difficulties = ['easy', 'medium', 'hard'];
+        for (let i = 0; i < aiCount; i++) {
+            const name = `${AI_NAMES[i % AI_NAMES.length]}${i >= AI_NAMES.length ? i + 1 : ''}`;
+            const difficulty = difficulties[i % difficulties.length];
+            const ai = new AIPlayer(name, difficulty);
+            this.aiPlayers.set(name, ai);
+        }
+    }
+
+    // Track activity for cleanup
+    updateActivity() {
+        this.lastActivity = Date.now();
+    }
+
+    // Initialize player data with frozen objects where appropriate
+    initPlayerData(name) {
+        this.playerData.set(name, {
+            hand: [],
+            melds: [],
+            buys: 3,
+            scores: new Array(7).fill(0),
+            goneDown: false,
+            wantList: { ranks: new Set(), suits: new Set(), specific: new Set() }
+        });
+    }
+
+    // Add player
+    addPlayer(name) {
+        if (this.players.includes(name)) return false;
+        
+        this.players.push(name);
+        this.initPlayerData(name);
+        
+        // Add AI players if host
+        if (name === this.hostName) {
+            this.aiPlayers.forEach((ai, aiName) => {
+                this.players.push(aiName);
+                this.initPlayerData(aiName);
+            });
+        }
+        
+        return true;
+    }
+
+    // Start game
+    startGame() {
+        if (this.players.length < 2) return false;
+        
+        this.gameStarted = true;
+        this.dealRound();
+        
+        // Schedule AI turn if needed
+        if (this.aiPlayers.has(this.getCurrentPlayer())) {
+            this.scheduleAITurn();
+        }
+        
+        return true;
+    }
+
+    // Deal cards for round
+    dealRound() {
+        this.deck = new Deck();
+        this.discardPile = [this.deck.deal()];
+        
+        const cardsPerPlayer = 10 + this.currentRound;
+        
+        // Reset player data for round
+        this.players.forEach(player => {
+            const data = this.playerData.get(player);
+            data.hand = [];
+            data.melds = [];
+            data.buys = 3;
+            data.goneDown = false;
             
-            // Optimized button state management
-            updateButtons() {
-                const canAct = this.state.isMyTurn && !this.state.layoffMode;
-                const selectedCount = this.state.selectedCards.size;
-                
-                document.getElementById('setBtn').disabled = !canAct || selectedCount < 3;
-                document.getElementById('runBtn').disabled = !canAct || selectedCount < 4;
-                document.getElementById('discardBtn').disabled = !canAct || !this.state.hasDrawn || selectedCount !== 1;
-            },
+            // Deal cards
+            for (let i = 0; i < cardsPerPlayer; i++) {
+                data.hand.push(this.deck.deal());
+            }
+        });
+        
+        // Set starting player
+        this.currentPlayerIndex = this.currentRound === 1 ? 0 : (this.currentRound - 1) % this.players.length;
+        this.turnState = { hasDrawn: false };
+    }
+
+    // Get current player
+    getCurrentPlayer() {
+        return this.players[this.currentPlayerIndex];
+    }
+
+    // Next turn
+    nextTurn() {
+        this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
+        this.turnState = { hasDrawn: false };
+        
+        if (this.aiPlayers.has(this.getCurrentPlayer())) {
+            this.scheduleAITurn();
+        }
+    }
+
+    // Schedule AI turn
+    scheduleAITurn() {
+        const player = this.getCurrentPlayer();
+        const ai = this.aiPlayers.get(player);
+        if (!ai) return;
+        
+        setTimeout(() => {
+            if (this.getCurrentPlayer() === player && this.gameStarted) {
+                this.executeAITurn(player);
+            }
+        }, ai.getDelay());
+    }
+
+    // Execute AI turn
+    executeAITurn(player) {
+        const ai = this.aiPlayers.get(player);
+        const data = this.playerData.get(player);
+        if (!ai || !data) return;
+        
+        // Draw phase
+        if (Math.random() < 0.3 && this.discardPile.length > 0) {
+            this.pickUpDiscard(player);
+        } else {
+            this.drawCard(player);
+        }
+        
+        // Meld phase
+        setTimeout(() => {
+            const req = ROUND_REQUIREMENTS[this.currentRound - 1];
+            let meldMade = true;
             
-            // Game actions
-            joinGame() {
-                const name = document.getElementById('playerName').value.trim();
-                const code = document.getElementById('gameCode').value.trim();
-                const aiCount = parseInt(document.getElementById('aiCount').value) || 0;
-                
-                if (!name) {
-                    this.notify("Please enter your name", "error");
-                    return;
-                }
-                
-                this.state.myName = name;
-                this.state.socket.emit('joinGame', { playerName: name, gameCode: code, aiCount });
-            },
-            
-            startGame() {
-                this.state.socket.emit('startGame');
-            },
-            
-            // Optimized card selection using Set for O(1) operations
-            toggleCard(index) {
-                if (this.state.selectedCards.has(index)) {
-                    this.state.selectedCards.delete(index);
+            while (meldMade) {
+                const meld = ai.findBestMeld(data.hand, req);
+                if (meld) {
+                    const result = this.makeMeld(player, meld.indices, meld.type);
+                    meldMade = result.success;
                 } else {
-                    this.state.selectedCards.add(index);
+                    meldMade = false;
                 }
-                this.playSound('click');
-                this.throttledUpdateUI();
-            },
-            
-            drawCard() {
-                if (!this.state.isMyTurn || this.state.hasDrawn) return;
-                this.state.socket.emit('drawCard');
-                this.playSound('click');
-            },
-            
-            pickUpDiscard() {
-                if (!this.state.isMyTurn || this.state.hasDrawn) return;
-                this.state.socket.emit('pickUpDiscard');
-                this.playSound('click');
-            },
-            
-            makeSet() {
-                if (this.state.selectedCards.size < 3) return;
-                this.state.socket.emit('makeMeld', { 
-                    cardIndices: Array.from(this.state.selectedCards), 
-                    meldType: 'set' 
-                });
-                this.state.selectedCards.clear();
-            },
-            
-            makeRun() {
-                if (this.state.selectedCards.size < 4) return;
-                this.state.socket.emit('makeMeld', { 
-                    cardIndices: Array.from(this.state.selectedCards), 
-                    meldType: 'run' 
-                });
-                this.state.selectedCards.clear();
-            },
-            
-            discardCard() {
-                if (this.state.selectedCards.size !== 1) return;
-                this.state.socket.emit('discardCard', { 
-                    cardIndex: Array.from(this.state.selectedCards)[0] 
-                });
-                this.state.selectedCards.clear();
-            },
-            
-            toggleLayoff() {
-                this.state.layoffMode = !this.state.layoffMode;
-                document.getElementById('layoffBtn').textContent = 
-                    this.state.layoffMode ? 'Cancel Layoff' : 'Lay Off';
-                this.updateUI();
-            },
-            
-            sortBySuit() {
-                const suitOrder = { 'hearts': 0, 'diamonds': 1, 'clubs': 2, 'spades': 3 };
-                const rankOrder = { 'A': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13 };
-                
-                this.state.cardOrder.sort((a, b) => {
-                    const cardA = this.state.hand[a];
-                    const cardB = this.state.hand[b];
-                    const suitDiff = suitOrder[cardA.suit] - suitOrder[cardB.suit];
-                    return suitDiff || rankOrder[cardA.rank] - rankOrder[cardB.rank];
-                });
-                
-                this.updateHand();
-                this.playSound('click');
-            },
-            
-            sortByRank() {
-                const rankOrder = { 'A': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13 };
-                const suitOrder = { 'hearts': 0, 'diamonds': 1, 'clubs': 2, 'spades': 3 };
-                
-                this.state.cardOrder.sort((a, b) => {
-                    const cardA = this.state.hand[a];
-                    const cardB = this.state.hand[b];
-                    const rankDiff = rankOrder[cardA.rank] - rankOrder[cardB.rank];
-                    return rankDiff || suitOrder[cardA.suit] - suitOrder[cardB.suit];
-                });
-                
-                this.updateHand();
-                this.playSound('click');
-            }
-        };
-        
-        // Initialize optimizations and event handlers
-        window.addEventListener('load', () => {
-            // Initialize throttled functions
-            game.throttledUpdateUI = game.throttle(game.updateUI.bind(game), 16); // 60fps
-            
-            // Preload audio context on first user interaction
-            document.addEventListener('click', () => {
-                game.initAudio();
-            }, { once: true });
-            
-            // Add performance monitoring
-            if (window.performance && performance.mark) {
-                performance.mark('game-start');
             }
             
-            game.addMessage('Welcome to Slattery Shanghai!');
-            game.addMessage('Click "Connect to Server" to begin');
-        });
+            // Discard phase
+            setTimeout(() => {
+                const discardIdx = ai.chooseDiscard(data.hand);
+                this.discardCard(player, discardIdx);
+            }, 500);
+        }, 1000);
+    }
+
+    // Draw card
+    drawCard(player) {
+        if (this.getCurrentPlayer() !== player || this.turnState.hasDrawn) {
+            return { success: false, message: "Cannot draw" };
+        }
         
-        // Add visibility API for performance when tab is hidden
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                // Pause expensive operations when tab is hidden
-                game.state.soundEnabled = false;
+        if (this.deck.isEmpty()) {
+            const top = this.discardPile.pop();
+            if (!this.deck.reset(this.discardPile)) {
+                return { success: false, message: "No cards available" };
+            }
+            this.discardPile = [top];
+        }
+        
+        const data = this.playerData.get(player);
+        data.hand.push(this.deck.deal());
+        this.turnState.hasDrawn = true;
+        
+        this.broadcast('gameMessage', { message: `${player} drew a card` });
+        return { success: true };
+    }
+
+    // Pick up discard
+    pickUpDiscard(player) {
+        if (this.getCurrentPlayer() !== player || this.turnState.hasDrawn || !this.discardPile.length) {
+            return { success: false, message: "Cannot pick up" };
+        }
+        
+        const data = this.playerData.get(player);
+        const card = this.discardPile.pop();
+        data.hand.push(card);
+        this.turnState.hasDrawn = true;
+        
+        this.broadcast('gameMessage', { message: `${player} picked up ${card.display}` });
+        return { success: true, card };
+    }
+
+    // Make meld
+    makeMeld(player, indices, type) {
+        if (this.getCurrentPlayer() !== player) {
+            return { success: false, message: "Not your turn" };
+        }
+        
+        const data = this.playerData.get(player);
+        const cards = indices.map(i => data.hand[i]);
+        
+        if (!this.validateMeld(cards, type)) {
+            return { success: false, message: "Invalid meld" };
+        }
+        
+        // Remove cards from hand
+        indices.sort((a, b) => b - a).forEach(i => data.hand.splice(i, 1));
+        data.melds.push({ type, cards });
+        
+        // Check if player has gone down
+        if (!data.goneDown) {
+            const req = ROUND_REQUIREMENTS[this.currentRound - 1];
+            const sets = data.melds.filter(m => m.type === 'set' && m.cards.length >= req.minSetSize).length;
+            const runs = data.melds.filter(m => m.type === 'run' && m.cards.length >= req.minRunSize).length;
+            
+            if (sets >= req.sets && runs >= req.runs) {
+                data.goneDown = true;
+            }
+        }
+        
+        this.broadcast('gameMessage', { message: `${player} made a ${type}` });
+        
+        // Check for round end
+        if (data.hand.length === 0 && data.goneDown) {
+            return { success: true, roundEnded: true, roundResult: this.endRound(player) };
+        }
+        
+        return { success: true };
+    }
+
+    // Validate meld
+    validateMeld(cards, type) {
+        if (type === 'set') {
+            if (cards.length < 3) return false;
+            const rank = cards[0].rank;
+            return cards.every(c => c.rank === rank);
+        } else if (type === 'run') {
+            if (cards.length < 4) return false;
+            const suit = cards[0].suit;
+            if (!cards.every(c => c.suit === suit)) return false;
+            
+            const sorted = [...cards].sort((a, b) => a.value - b.value);
+            for (let i = 1; i < sorted.length; i++) {
+                if (sorted[i].value !== sorted[i-1].value + 1) return false;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    // Discard card
+    discardCard(player, index) {
+        if (this.getCurrentPlayer() !== player || !this.turnState.hasDrawn) {
+            return { success: false, message: "Cannot discard" };
+        }
+        
+        const data = this.playerData.get(player);
+        if (index < 0 || index >= data.hand.length) {
+            return { success: false, message: "Invalid card" };
+        }
+        
+        const card = data.hand.splice(index, 1)[0];
+        this.discardPile.push(card);
+        
+        this.broadcast('gameMessage', { message: `${player} discarded ${card.display}` });
+        
+        // Check for round end
+        if (data.hand.length === 0 && data.goneDown) {
+            return { success: true, roundEnded: true, roundResult: this.endRound(player) };
+        }
+        
+        // Start buy phase
+        this.startBuyPhase(card);
+        
+        return { success: true, card };
+    }
+
+    // Start buy phase
+    startBuyPhase(card) {
+        this.buyPhase = { active: true, card, requests: new Map() };
+        
+        // Get eligible buyers
+        const buyers = this.players.filter(p => 
+            p !== this.getCurrentPlayer() && 
+            this.playerData.get(p).buys > 0
+        );
+        
+        if (buyers.length === 0) {
+            this.endBuyPhase();
+            return;
+        }
+        
+        // Notify buyers
+        buyers.forEach(player => {
+            if (this.aiPlayers.has(player)) {
+                // AI decision
+                const ai = this.aiPlayers.get(player);
+                const data = this.playerData.get(player);
+                const wants = ai.shouldBuy(card, data.hand, data.buys);
+                this.buyPhase.requests.set(player, wants);
             } else {
-                // Resume when tab is visible
-                game.state.soundEnabled = true;
+                // Notify human player
+                const socket = io.sockets.sockets.get(playerSockets.get(player));
+                if (socket) {
+                    socket.emit('buyRequest', { card, timeLimit: 3000 });
+                }
             }
         });
-    </script>
-</body>
-</html>
+        
+        // Process after timeout
+        setTimeout(() => this.processBuyPhase(), 3000);
+    }
+
+    // Process buy phase
+    processBuyPhase() {
+        const buyers = Array.from(this.buyPhase.requests.entries())
+            .filter(([_, wants]) => wants)
+            .map(([player]) => player);
+        
+        if (buyers.length > 0) {
+            // Give to first buyer in turn order
+            const buyer = buyers[0];
+            const data = this.playerData.get(buyer);
+            
+            data.hand.push(this.discardPile.pop());
+            data.hand.push(this.deck.deal());
+            data.buys--;
+            
+            this.broadcast('gameMessage', { message: `${buyer} bought the card` });
+        }
+        
+        this.endBuyPhase();
+    }
+
+    // End buy phase
+    endBuyPhase() {
+        this.buyPhase = { active: false, card: null, requests: new Map() };
+        this.nextTurn();
+        this.broadcastGameState();
+    }
+
+    // End round
+    endRound(winner) {
+        // Calculate scores
+        this.players.forEach(player => {
+            const data = this.playerData.get(player);
+            let score = 0;
+            
+            if (player !== winner) {
+                score = data.hand.reduce((sum, card) => sum + card.getScoreValue(), 0);
+            }
+            
+            data.scores[this.currentRound - 1] = score;
+        });
+        
+        if (this.currentRound >= 7) {
+            return { gameEnded: true, finalResults: this.endGame() };
+        }
+        
+        this.currentRound++;
+        this.dealRound();
+        return { gameEnded: false, newRound: this.currentRound };
+    }
+
+    // End game
+    endGame() {
+        const finalScores = new Map();
+        
+        this.players.forEach(player => {
+            const data = this.playerData.get(player);
+            const total = data.scores.reduce((sum, score) => sum + score, 0);
+            finalScores.set(player, total);
+        });
+        
+        const sorted = Array.from(finalScores.entries()).sort((a, b) => a[1] - b[1]);
+        
+        return {
+            winner: sorted[0][0],
+            winnerScore: sorted[0][1],
+            finalStandings: sorted,
+            gameComplete: true
+        };
+    }
+
+    // Get game state for player
+    getGameState(player) {
+        const data = this.playerData.get(player);
+        const allMelds = {};
+        const handCounts = {};
+        const scores = {};
+        
+        this.players.forEach(p => {
+            const pData = this.playerData.get(p);
+            allMelds[p] = pData.melds;
+            handCounts[p] = pData.hand.length;
+            scores[p] = pData.scores;
+        });
+        
+        return {
+            gameCode: this.gameCode,
+            players: this.players,
+            currentPlayer: this.getCurrentPlayer(),
+            currentRound: this.currentRound,
+            roundRequirements: ROUND_REQUIREMENTS[this.currentRound - 1],
+            hand: data.hand,
+            melds: data.melds,
+            allPlayerMelds: allMelds,
+            handCounts,
+            scores,
+            buysRemaining: data.buys,
+            discardTop: this.discardPile[this.discardPile.length - 1] || null,
+            turnState: this.turnState,
+            hasGoneDown: data.goneDown,
+            aiPlayers: Array.from(this.aiPlayers.keys())
+        };
+    }
+
+    // Broadcast to all players
+    broadcast(event, data) {
+        io.to(this.gameCode).emit(event, data);
+    }
+
+    // Broadcast game state
+    broadcastGameState() {
+        this.players.forEach(player => {
+            if (!this.aiPlayers.has(player)) {
+                const socket = io.sockets.sockets.get(playerSockets.get(player));
+                if (socket) {
+                    socket.emit('gameUpdate', this.getGameState(player));
+                }
+            }
+        });
+    }
+}
+
+// Optimized socket handlers with better error handling and validation
+io.on('connection', (socket) => {
+    console.log('Player connected:', socket.id);
+    
+    // Rate limiting per socket
+    const rateLimiter = new Map();
+    
+    const checkRateLimit = (event) => {
+        const now = Date.now();
+        const key = `${socket.id}_${event}`;
+        const lastCall = rateLimiter.get(key) || 0;
+        
+        if (now - lastCall < 100) { // 100ms between calls
+            return false;
+        }
+        
+        rateLimiter.set(key, now);
+        return true;
+    };
+
+    socket.on('joinGame', (data) => {
+        if (!checkRateLimit('joinGame')) return;
+        
+        try {
+            const { playerName, gameCode, aiCount } = data;
+            
+            // Enhanced validation
+            if (!playerName || typeof playerName !== 'string' || playerName.trim().length === 0) {
+                socket.emit('error', { message: 'Valid name required' });
+                return;
+            }
+            
+            if (playerName.length > 20) {
+                socket.emit('error', { message: 'Name too long (max 20 characters)' });
+                return;
+            }
+            
+            const sanitizedName = playerName.trim();
+            const sanitizedAiCount = Math.max(0, Math.min(6, parseInt(aiCount) || 0));
+
+            let game;
+            let code = gameCode;
+
+            if (code && games.has(code)) {
+                game = games.get(code);
+                game.updateActivity();
+            } else {
+                // More robust game code generation
+                do {
+                    code = Math.random().toString(36).substring(2, 8).toUpperCase();
+                } while (games.has(code));
+                
+                game = new Game(code, sanitizedName, sanitizedAiCount);
+                games.set(code, game);
+            }
+
+            if (!game.addPlayer(sanitizedName)) {
+                socket.emit('error', { message: 'Name already taken' });
+                return;
+            }
+
+            // Clean up old socket association
+            if (socket.playerName) {
+                playerSockets.delete(socket.playerName);
+            }
+
+            playerSockets.set(sanitizedName, socket.id);
+            socket.playerName = sanitizedName;
+            socket.gameCode = code;
+            socket.join(code);
+
+            io.to(code).emit('playerJoined', {
+                players: game.players,
+                gameCode: code,
+                isHost: sanitizedName === game.hostName,
+                aiPlayers: Array.from(game.aiPlayers.keys())
+            });
+        } catch (error) {
+            console.error('Error in joinGame:', error);
+            socket.emit('error', { message: 'Server error occurred' });
+        }
+    });
+
+    socket.on('startGame', () => {
+        if (!checkRateLimit('startGame')) return;
+        
+        try {
+            const game = games.get(socket.gameCode);
+            if (!game || socket.playerName !== game.hostName) {
+                socket.emit('error', { message: 'Cannot start game' });
+                return;
+            }
+
+            game.updateActivity();
+            
+            if (game.startGame()) {
+                game.broadcastGameState();
+                game.players.forEach(player => {
+                    if (!game.aiPlayers.has(player)) {
+                        const s = io.sockets.sockets.get(playerSockets.get(player));
+                        if (s) s.emit('gameStarted', game.getGameState(player));
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Error in startGame:', error);
+            socket.emit('error', { message: 'Failed to start game' });
+        }
+    });
+
+    // Optimized game action handlers with rate limiting
+    ['drawCard', 'pickUpDiscard'].forEach(action => {
+        socket.on(action, () => {
+            if (!checkRateLimit(action)) return;
+            
+            try {
+                const game = games.get(socket.gameCode);
+                if (!game) return;
+                
+                game.updateActivity();
+                const result = game[action](socket.playerName);
+                if (result.success) {
+                    game.broadcastGameState();
+                } else {
+                    socket.emit('error', result);
+                }
+            } catch (error) {
+                console.error(`Error in ${action}:`, error);
+                socket.emit('error', { message: 'Action failed' });
+            }
+        });
+    });
+
+    socket.on('makeMeld', (data) => {
+        if (!checkRateLimit('makeMeld')) return;
+        
+        try {
+            const game = games.get(socket.gameCode);
+            if (!game) return;
+            
+            game.updateActivity();
+            const result = game.makeMeld(socket.playerName, data.cardIndices, data.meldType);
+            if (result.success) {
+                if (result.roundEnded) {
+                    handleRoundEnd(game, result.roundResult);
+                } else {
+                    game.broadcastGameState();
+                }
+            } else {
+                socket.emit('error', result);
+            }
+        } catch (error) {
+            console.error('Error in makeMeld:', error);
+            socket.emit('error', { message: 'Meld failed' });
+        }
+    });
+
+    socket.on('discardCard', (data) => {
+        if (!checkRateLimit('discardCard')) return;
+        
+        try {
+            const game = games.get(socket.gameCode);
+            if (!game) return;
+            
+            game.updateActivity();
+            const result = game.discardCard(socket.playerName, data.cardIndex);
+            if (result.success) {
+                if (result.roundEnded) {
+                    handleRoundEnd(game, result.roundResult);
+                }
+            } else {
+                socket.emit('error', result);
+            }
+        } catch (error) {
+            console.error('Error in discardCard:', error);
+            socket.emit('error', { message: 'Discard failed' });
+        }
+    });
+
+    socket.on('submitBuyRequest', (data) => {
+        if (!checkRateLimit('submitBuyRequest')) return;
+        try {
+            const game = games.get(socket.gameCode);
+            if (!game || !game.buyPhase.active) return;
+            
+            game.updateActivity();
+            game.buyPhase.requests.set(socket.playerName, data.wantsCard);
+        } catch (error) {
+            console.error('Error in submitBuyRequest:', error);
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log('Player disconnected:', socket.id);
+        
+        // Clean up rate limiter
+        for (const [key] of rateLimiter.entries()) {
+            if (key.startsWith(socket.id)) {
+                rateLimiter.delete(key);
+            }
+        }
+        
+        if (socket.playerName && socket.gameCode) {
+            const game = games.get(socket.gameCode);
+            if (game) {
+                game.updateActivity();
+                const idx = game.players.indexOf(socket.playerName);
+                if (idx > -1) {
+                    game.players.splice(idx, 1);
+                    game.playerData.delete(socket.playerName);
+                    playerSockets.delete(socket.playerName);
+                    
+                    if (game.players.filter(p => !game.aiPlayers.has(p)).length === 0) {
+                        games.delete(socket.gameCode);
+                    }
+                }
+            }
+        }
+    });
+});
+
+// Handle round end
+function handleRoundEnd(game, result) {
+    if (result.gameEnded) {
+        io.to(game.gameCode).emit('gameComplete', result.finalResults);
+    } else {
+        game.broadcastGameState();
+        game.broadcast('gameMessage', { message: `Round ${result.newRound} starting!` });
+    }
+}
+
+// Start server
+server.listen(PORT, () => {
+    console.log(`Shanghai Rummy server running on port ${PORT}`);
+    console.log(`Game available at: http://localhost:${PORT}`);
+});
+
+process.on('SIGINT', () => {
+    console.log('\nShutting down server...');
+    server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+    });
+});
