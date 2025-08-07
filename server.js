@@ -395,7 +395,10 @@ class Game {
         // Reset turn state
         this.turnState = {
             hasDrawn: false,
-            canBuy: true
+            canBuy: true,
+            buyPhase: false,
+            buyRequests: new Map(),
+            buyTimer: null
         };
     }
 
@@ -407,13 +410,21 @@ class Game {
         this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
         this.turnState = {
             hasDrawn: false,
-            canBuy: true
+            canBuy: true,
+            buyPhase: false,
+            buyRequests: new Map(),
+            buyTimer: null
         };
         console.log(`Turn changed to player ${this.currentPlayerIndex}: ${this.getCurrentPlayer()}`);
         
-        // Schedule AI turn if next player is AI
-        if (this.aiPlayers.has(this.getCurrentPlayer())) {
-            this.scheduleAITurn();
+        // Start buy phase if there's a discard pile
+        if (this.discardPile.length > 0) {
+            this.startBuyPhase();
+        } else {
+            // Schedule AI turn if next player is AI and no buy phase
+            if (this.aiPlayers.has(this.getCurrentPlayer())) {
+                this.scheduleAITurn();
+            }
         }
     }
 
@@ -509,29 +520,192 @@ class Game {
         }
     }
 
-    // Handle AI buying cards
-    processAIBuys(gameCode) {
-        if (!this.discardPile.length) return;
+    startBuyPhase() {
+        if (this.turnState.buyPhase || this.discardPile.length === 0) return;
+        
+        this.turnState.buyPhase = true;
+        this.turnState.buyRequests.clear();
         
         const discardCard = this.discardPile[this.discardPile.length - 1];
+        const currentPlayer = this.getCurrentPlayer();
         
-        // Check all AI players (except current player) for buying interest
-        this.players.forEach(playerName => {
-            if (this.getCurrentPlayer() !== playerName && this.aiPlayers.has(playerName)) {
-                const aiPlayer = this.aiPlayers.get(playerName);
-                const buysRemaining = this.playerBuys.get(playerName) || 0;
+        console.log(`Starting buy phase for discard: ${discardCard.display}`);
+        
+        // First, ask current player if they want the discard
+        if (this.aiPlayers.has(currentPlayer)) {
+            // AI player decision
+            const aiPlayer = this.aiPlayers.get(currentPlayer);
+            const wantsDiscard = Math.random() < 0.4; // 40% chance AI wants discard
+            
+            setTimeout(() => {
+                this.handleCurrentPlayerDiscardDecision(currentPlayer, wantsDiscard);
+            }, aiPlayer.getDecisionDelay() / 2);
+        } else {
+            // Human player - send discard offer
+            const playerSocket = io.sockets.sockets.get(playerSockets.get(currentPlayer));
+            if (playerSocket) {
+                playerSocket.emit('discardOffer', {
+                    card: discardCard,
+                    timeLimit: 3000
+                });
                 
-                if (buysRemaining > 0 && aiPlayer.shouldBuyCard(this, discardCard)) {
-                    setTimeout(() => {
-                        const result = this.buyCard(playerName);
-                        if (result.success) {
-                            this.broadcastMessage(`${playerName} bought the ${result.discardCard.display} and drew a penalty card`);
-                            this.broadcastGameUpdate();
-                        }
-                    }, Math.random() * 2000 + 500); // Random delay 0.5-2.5 seconds
+                // Auto-decline after timeout
+                this.turnState.buyTimer = setTimeout(() => {
+                    if (this.turnState.buyPhase && this.getCurrentPlayer() === currentPlayer) {
+                        this.handleCurrentPlayerDiscardDecision(currentPlayer, false);
+                    }
+                }, 3000);
+            } else {
+                // Player not connected, auto-decline
+                this.handleCurrentPlayerDiscardDecision(currentPlayer, false);
+            }
+        }
+    }
+
+    handleCurrentPlayerDiscardDecision(playerName, wantsDiscard) {
+        if (!this.turnState.buyPhase || this.getCurrentPlayer() !== playerName) return;
+        
+        if (this.turnState.buyTimer) {
+            clearTimeout(this.turnState.buyTimer);
+            this.turnState.buyTimer = null;
+        }
+        
+        if (wantsDiscard) {
+            // Current player takes the discard
+            const result = this.pickUpDiscard(playerName);
+            if (result.success) {
+                this.turnState.buyPhase = false;
+                this.broadcastGameUpdate();
+                this.broadcastMessage(`${playerName} picked up the ${result.card.display} from discard pile`);
+                
+                // Schedule AI turn if current player is AI
+                if (this.aiPlayers.has(playerName)) {
+                    setTimeout(() => this.tryAIMelds(playerName), 1000);
+                }
+            } else {
+                // Failed to pick up, continue to buy phase
+                this.startBuyRequestPhase();
+            }
+        } else {
+            // Current player declined, start buy request phase
+            this.startBuyRequestPhase();
+        }
+    }
+
+    startBuyRequestPhase() {
+        if (!this.turnState.buyPhase || this.discardPile.length === 0) return;
+        
+        const discardCard = this.discardPile[this.discardPile.length - 1];
+        const currentPlayer = this.getCurrentPlayer();
+        
+        console.log(`Starting buy request phase for: ${discardCard.display}`);
+        
+        // Clear any existing requests
+        this.turnState.buyRequests.clear();
+        
+        // Send buy requests to all other players who can buy
+        this.players.forEach(playerName => {
+            if (playerName !== currentPlayer && this.playerBuys.get(playerName) > 0) {
+                if (this.aiPlayers.has(playerName)) {
+                    // Handle AI buy decision
+                    const aiPlayer = this.aiPlayers.get(playerName);
+                    if (aiPlayer.shouldBuyCard(this, discardCard)) {
+                        setTimeout(() => {
+                            this.submitBuyRequest(playerName, true);
+                        }, Math.random() * 2000 + 500); // Random delay 0.5-2.5 seconds
+                    } else {
+                        setTimeout(() => {
+                            this.submitBuyRequest(playerName, false);
+                        }, Math.random() * 1000 + 500); // Faster decline
+                    }
+                } else {
+                    // Send buy request to human player
+                    const playerSocket = io.sockets.sockets.get(playerSockets.get(playerName));
+                    if (playerSocket) {
+                        playerSocket.emit('buyRequest', {
+                            card: discardCard,
+                            timeLimit: 3000
+                        });
+                    }
                 }
             }
         });
+        
+        // Set timer to resolve buy phase
+        this.turnState.buyTimer = setTimeout(() => {
+            this.resolveBuyPhase();
+        }, 3000);
+    }
+
+    submitBuyRequest(playerName, wantsCard) {
+        if (!this.turnState.buyPhase) return { success: false, message: "No active buy phase" };
+        
+        console.log(`${playerName} submitted buy request: ${wantsCard}`);
+        this.turnState.buyRequests.set(playerName, wantsCard);
+        
+        // Check if all eligible players have responded
+        const eligiblePlayers = this.players.filter(p => 
+            p !== this.getCurrentPlayer() && this.playerBuys.get(p) > 0
+        );
+        
+        if (this.turnState.buyRequests.size >= eligiblePlayers.length) {
+            // All players responded, resolve immediately
+            if (this.turnState.buyTimer) {
+                clearTimeout(this.turnState.buyTimer);
+            }
+            this.resolveBuyPhase();
+        }
+        
+        return { success: true };
+    }
+
+    resolveBuyPhase() {
+        if (!this.turnState.buyPhase) return;
+        
+        console.log(`Resolving buy phase...`);
+        
+        if (this.turnState.buyTimer) {
+            clearTimeout(this.turnState.buyTimer);
+            this.turnState.buyTimer = null;
+        }
+        
+        // Find players who want to buy (in turn order)
+        const currentPlayerIndex = this.currentPlayerIndex;
+        const wantToBuy = [];
+        
+        for (let i = 1; i < this.players.length; i++) {
+            const playerIndex = (currentPlayerIndex + i) % this.players.length;
+            const playerName = this.players[playerIndex];
+            
+            if (this.turnState.buyRequests.get(playerName) === true) {
+                wantToBuy.push(playerName);
+            }
+        }
+        
+        console.log(`Players who want to buy:`, wantToBuy);
+        
+        if (wantToBuy.length > 0) {
+            // First player in turn order gets the card
+            const buyerName = wantToBuy[0];
+            const result = this.buyCard(buyerName);
+            
+            if (result.success) {
+                this.broadcastMessage(`${buyerName} bought the ${result.discardCard.display} and drew a penalty card`);
+                this.broadcastGameUpdate();
+            }
+        }
+        
+        // End buy phase
+        this.turnState.buyPhase = false;
+        this.turnState.buyRequests.clear();
+        
+        // Continue with current player's turn
+        const currentPlayer = this.getCurrentPlayer();
+        if (this.aiPlayers.has(currentPlayer)) {
+            this.scheduleAITurn();
+        } else {
+            this.broadcastGameUpdate();
+        }
     }
 
     broadcastMessage(message) {
@@ -670,11 +844,6 @@ class Game {
         
         console.log(`${playerName} drew a card, hand now has ${this.playerHands.get(playerName).length} cards`);
         
-        // Process AI buying opportunities after a human draws
-        if (!this.aiPlayers.has(playerName)) {
-            setTimeout(() => this.processAIBuys(), 1000);
-        }
-        
         return { success: true, card };
     }
 
@@ -811,11 +980,6 @@ class Game {
         console.log(`Ending ${playerName}'s turn, moving to next player`);
         this.nextTurn();
         console.log(`New current player: ${this.getCurrentPlayer()}`);
-        
-        // Process AI buying opportunities after discard
-        if (!this.aiPlayers.has(playerName)) {
-            setTimeout(() => this.processAIBuys(), 500);
-        }
         
         return { success: true, card: discardedCard };
     }
@@ -1125,6 +1289,32 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('submitBuyRequest', (data) => {
+        console.log(`${socket.playerName} submitted buy request: ${data.wantsCard}`);
+        const game = games.get(socket.gameCode);
+        if (!game) {
+            console.log('Game not found');
+            return;
+        }
+
+        const result = game.submitBuyRequest(socket.playerName, data.wantsCard);
+        if (!result.success) {
+            console.log('Submit buy request failed:', result.message);
+            socket.emit('error', result);
+        }
+    });
+
+    socket.on('discardDecision', (data) => {
+        console.log(`${socket.playerName} discard decision: ${data.wantsDiscard}`);
+        const game = games.get(socket.gameCode);
+        if (!game) {
+            console.log('Game not found');
+            return;
+        }
+
+        game.handleCurrentPlayerDiscardDecision(socket.playerName, data.wantsDiscard);
+    });
+
     socket.on('buyCard', () => {
         console.log(`${socket.playerName} attempting to buy card`);
         const game = games.get(socket.gameCode);
@@ -1314,4 +1504,3 @@ process.on('SIGINT', () => {
         process.exit(0);
     });
 });
-
