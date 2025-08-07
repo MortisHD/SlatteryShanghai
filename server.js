@@ -615,7 +615,7 @@ class Game {
             let score = 0;
             
             if (player !== winner) {
-                score = data.hand.reduce((sum, card) => sum + card.getScoreValue(), 0);
+                score = data.hand.reduce((sum, card) => sum + card.scoreValue, 0);
             }
             
             data.scores[this.currentRound - 1] = score;
@@ -679,7 +679,13 @@ class Game {
             discardTop: this.discardPile[this.discardPile.length - 1] || null,
             turnState: this.turnState,
             hasGoneDown: data.goneDown,
-            aiPlayers: Array.from(this.aiPlayers.keys())
+            aiPlayers: Array.from(this.aiPlayers.keys()),
+            isMyTurn: this.getCurrentPlayer() === player,
+            buyPhase: this.buyPhase.active ? { 
+                active: true, 
+                card: this.buyPhase.card,
+                canBuy: data.buys > 0 && this.getCurrentPlayer() !== player
+            } : { active: false }
         };
     }
 
